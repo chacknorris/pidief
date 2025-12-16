@@ -5,12 +5,12 @@ import type { DocumentState } from "@/hooks/use-pdf-state"
  * Exports a PDF with overlays applied according to the document state.
  * This function treats the original PDF as immutable and applies all edits as overlays.
  *
- * @param originalPdfBytes - The original PDF as ArrayBuffer
+ * @param originalPdfSources - Array of original PDFs as ArrayBuffers
  * @param documentState - The complete document state with all overlays
  * @returns A Uint8Array containing the final PDF
  */
 export async function exportFinalPDF(
-  originalPdfBytes: ArrayBuffer,
+  originalPdfSources: ArrayBuffer[],
   documentState: DocumentState
 ): Promise<Uint8Array> {
   try {
@@ -20,25 +20,29 @@ export async function exportFinalPDF(
       throw new Error("No document in state")
     }
 
+    if (!originalPdfSources.length) {
+      throw new Error("No PDF sources available")
+    }
+
+    // Load all source PDFs (each import is a source)
+    const sourcePdfs = await Promise.all(originalPdfSources.map((bytes) => PDFDocument.load(bytes)))
+
     // Build a new PDF so we can respect the current page order
-    const sourcePdf = await PDFDocument.load(originalPdfBytes)
     const pdfDoc = await PDFDocument.create()
 
     const pageEntries = doc.pageOrder.map((pageId, index) => ({
       pageId,
       metrics: pageMetrics[pageId],
-      sourceIndex: pageMetrics[pageId]?.pageIndex ?? index,
+      sourceIndex: pageMetrics[pageId]?.sourceIndex ?? 0,
+      sourcePageIndex: pageMetrics[pageId]?.pageIndex ?? index,
     }))
 
-    const copiedPages = await pdfDoc.copyPages(
-      sourcePdf,
-      pageEntries.map((entry) => entry.sourceIndex),
-    )
-
     for (let i = 0; i < pageEntries.length; i++) {
-      const { pageId, metrics } = pageEntries[i]
+      const { pageId, metrics, sourceIndex, sourcePageIndex } = pageEntries[i]
       const pageData = documentState.pages[pageId]
-      const page = copiedPages[i]
+
+      const sourcePdf = sourcePdfs[sourceIndex] ?? sourcePdfs[0]
+      const [page] = sourcePdf ? await pdfDoc.copyPages(sourcePdf, [sourcePageIndex]) : [undefined]
 
       if (!page || !pageData) continue
 
@@ -71,6 +75,22 @@ export async function exportFinalPDF(
             x = pageWidth - textWidth - 20
             y = pageHeight - 20 - fontSize
             break
+        }
+
+        if (pagination.backgroundBox) {
+          const padding = 5
+          const boxWidth = textWidth + padding * 2
+          const boxHeight = fontSize + padding * 2
+          const boxX = x - padding
+          const boxY = y - padding
+
+          page.drawRectangle({
+            x: boxX,
+            y: boxY,
+            width: boxWidth,
+            height: boxHeight,
+            color: rgb(1, 1, 1),
+          })
         }
 
         page.drawText(text, {
@@ -124,7 +144,7 @@ export async function exportFinalPDF(
             y: pdfY,
             size: scaledFontSize,
             font,
-            color,
+            color: rgb(color.r, color.g, color.b),
           })
         }
       }

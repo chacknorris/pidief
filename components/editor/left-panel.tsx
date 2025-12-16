@@ -15,33 +15,45 @@ interface LeftPanelProps {
 export function LeftPanel({ pdfState }: LeftPanelProps) {
   const { state, currentPageId, setCurrentPageId, duplicatePage, deletePage, reorderPages } = pdfState
   const [dragOverId, setDragOverId] = useState<string | null>(null)
-  const pdfDocRef = useRef<any>(null)
+  const pdfDocRef = useRef<Map<number, any> | null>(new Map())
   const [pdfDocVersion, setPdfDocVersion] = useState(0)
 
   useEffect(() => {
     let cancelled = false
 
     async function loadPdfDocument() {
-      if (!state.originalPdfBytes) {
-        pdfDocRef.current = null
+      if (!pdfDocRef.current) {
+        pdfDocRef.current = new Map()
+      }
+      if (!state.originalPdfSources.length) {
+        pdfDocRef.current?.clear()
         return
       }
 
       const pdfjsLib = await import("pdfjs-dist")
 
       if (typeof window !== "undefined") {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`
+        const workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString()
+        pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc
       }
 
-      const loadingTask = pdfjsLib.getDocument({ data: state.originalPdfBytes })
-      const pdfDocument = await loadingTask.promise
+      await Promise.all(
+        state.originalPdfSources.map(async (bytes, index) => {
+          if (!pdfDocRef.current) {
+            pdfDocRef.current = new Map()
+          }
+          if (pdfDocRef.current.has(index)) return
+          const loadingTask = pdfjsLib.getDocument({ data: bytes.slice(0) })
+          const pdfDocument = await loadingTask.promise
 
-      if (!cancelled) {
-        pdfDocRef.current = pdfDocument
-        setPdfDocVersion((v) => v + 1)
-      } else {
-        loadingTask.destroy?.()
-      }
+          if (!cancelled) {
+            pdfDocRef.current?.set(index, pdfDocument)
+            setPdfDocVersion((v) => v + 1)
+          } else {
+            loadingTask.destroy?.()
+          }
+        }),
+      )
     }
 
     loadPdfDocument()
@@ -49,7 +61,7 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
     return () => {
       cancelled = true
     }
-  }, [state.originalPdfBytes])
+  }, [state.originalPdfSources])
 
   if (!state.document) {
     return (
@@ -155,8 +167,8 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
 
 interface PageThumbnailProps {
   pageOrderIndex: number
-  metrics?: { width: number; height: number; pageIndex: number }
-  pdfDocRef: React.MutableRefObject<any>
+  metrics?: { width: number; height: number; pageIndex: number; sourceIndex: number }
+  pdfDocRef: React.MutableRefObject<Map<number, any> | null>
   pdfDocVersion: number
 }
 
@@ -168,7 +180,7 @@ function PageThumbnail({ metrics, pageOrderIndex, pdfDocRef, pdfDocVersion }: Pa
 
     async function renderThumbnail() {
       const canvas = canvasRef.current
-      const pdfDoc = pdfDocRef.current
+      const pdfDoc = pdfDocRef.current?.get(metrics?.sourceIndex ?? 0)
       if (!canvas || !pdfDoc) return
 
       const pageIndex = metrics?.pageIndex ?? pageOrderIndex

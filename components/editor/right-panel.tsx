@@ -282,6 +282,16 @@ export function RightPanel({ pdfState }: RightPanelProps) {
           </div>
           {state.pagination.enabled && (
             <>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="paginationBackground" className="text-xs">
+                  Background Box
+                </Label>
+                <Switch
+                  id="paginationBackground"
+                  checked={state.pagination.backgroundBox}
+                  onCheckedChange={(checked) => updatePagination({ backgroundBox: checked })}
+                />
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="position" className="text-xs">
                   Position

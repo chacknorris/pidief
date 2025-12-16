@@ -14,7 +14,7 @@ PIDIEF es un **editor de PDF client-side** construido con Next.js 16, React 19 y
 ### 2. Estado JSON como Fuente Única de Verdad
 - Todo el estado de la aplicación es serializable a JSON
 - El estado puede exportarse/importarse sin pérdida de información
-- Determinismo: mismo estado JSON = misma visualización
+- Determinismo: mismo estado JSON = misma visualización -
 
 ### 3. Arquitectura Client-Side
 - ❌ No hay backend

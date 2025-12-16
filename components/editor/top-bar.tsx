@@ -64,7 +64,7 @@ export function TopBar({ pdfState }: TopBarProps) {
         Load JSON
       </Button>
       <div className="ml-2 h-8 w-px bg-border" />
-      <Button onClick={exportPDF} variant="default" size="sm" disabled={!state.originalPdfBytes}>
+      <Button onClick={exportPDF} variant="default" size="sm" disabled={!state.originalPdfSources.length}>
         <FileDown className="mr-2 h-4 w-4" />
         Export PDF
       </Button>

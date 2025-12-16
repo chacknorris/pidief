@@ -30,7 +30,7 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
   const [pdfDocVersion, setPdfDocVersion] = useState(0)
   const canvasRef = useRef<HTMLDivElement>(null)
   const pdfCanvasRef = useRef<HTMLCanvasElement>(null)
-  const pdfDocRef = useRef<any>(null)
+  const pdfDocRef = useRef<Map<number, any> | null>(new Map())
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0, elementX: 0, elementY: 0 })
   const [isResizing, setIsResizing] = useState(false)
@@ -127,26 +127,38 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
     let cancelled = false
 
     async function loadPdfDocument() {
-      if (!state.originalPdfBytes) {
-        pdfDocRef.current = null
+      if (!pdfDocRef.current) {
+        pdfDocRef.current = new Map()
+      }
+      if (!state.originalPdfSources.length) {
+        pdfDocRef.current?.clear()
         return
       }
 
       const pdfjsLib = await import("pdfjs-dist")
 
       if (typeof window !== "undefined") {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`
+        const workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString()
+        pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc
       }
 
-      const loadingTask = pdfjsLib.getDocument({ data: state.originalPdfBytes })
-      const pdfDocument = await loadingTask.promise
+      await Promise.all(
+        state.originalPdfSources.map(async (bytes, index) => {
+          if (!pdfDocRef.current) {
+            pdfDocRef.current = new Map()
+          }
+          if (pdfDocRef.current.has(index)) return
+          const loadingTask = pdfjsLib.getDocument({ data: bytes.slice(0) })
+          const pdfDocument = await loadingTask.promise
 
-      if (!cancelled) {
-        pdfDocRef.current = pdfDocument
-        setPdfDocVersion((v) => v + 1)
-      } else {
-        loadingTask.destroy?.()
-      }
+          if (!cancelled) {
+            pdfDocRef.current?.set(index, pdfDocument)
+            setPdfDocVersion((v) => v + 1)
+          } else {
+            loadingTask.destroy?.()
+          }
+        }),
+      )
     }
 
     loadPdfDocument()
@@ -154,18 +166,20 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
     return () => {
       cancelled = true
     }
-  }, [state.originalPdfBytes])
+  }, [state.originalPdfSources])
 
   React.useEffect(() => {
     let cancelled = false
 
     async function renderCurrentPage() {
       const canvas = pdfCanvasRef.current
-      const pdfDoc = pdfDocRef.current
+      const metrics = state.pageMetrics[currentPageId]
+      if (!pdfDocRef.current) return
+      const pdfDoc = pdfDocRef.current.get(metrics?.sourceIndex ?? 0)
 
       if (!canvas || !pdfDoc || !currentPageId || !state.document) return
 
-      const pageIndex = state.pageMetrics[currentPageId]?.pageIndex ?? state.document.pageOrder.indexOf(currentPageId)
+      const pageIndex = metrics?.pageIndex ?? state.document.pageOrder.indexOf(currentPageId)
       if (pageIndex < 0) return
 
       const page = await pdfDoc.getPage(pageIndex + 1)
@@ -430,6 +444,10 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
                   ...(state.pagination.position === "top-right" && {
                     top: 20,
                     right: 20,
+                  }),
+                  ...(state.pagination.backgroundBox && {
+                    backgroundColor: "white",
+                    padding: "5px",
                   }),
                 }}
               >

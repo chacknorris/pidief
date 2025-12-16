@@ -54,10 +54,13 @@ export interface DocumentState {
     enabled: boolean
     position: "bottom-center" | "bottom-right" | "top-right"
     startAt: number
+    backgroundBox: boolean
   }
-  // PDF original data (not serialized to JSON)
+  // Legacy single PDF reference (kept for backward compatibility, not serialized)
   originalPdfBytes: ArrayBuffer | null
-  pageMetrics: Record<string, { width: number; height: number; pageIndex: number }>
+  // Multiple PDF sources to allow merging/ordering across imports
+  originalPdfSources: ArrayBuffer[]
+  pageMetrics: Record<string, { width: number; height: number; pageIndex: number; sourceIndex: number }>
 }
 
 export interface PDFState {
@@ -88,8 +91,10 @@ const initialState: DocumentState = {
     enabled: false,
     position: "bottom-center",
     startAt: 1,
+    backgroundBox: false,
   },
   originalPdfBytes: null,
+  originalPdfSources: [],
   pageMetrics: {},
 }
 
@@ -102,23 +107,30 @@ export function usePDFState(): PDFState {
     try {
       // Read the file as ArrayBuffer
       const arrayBuffer = await file.arrayBuffer()
+      // Keep a stable copy to avoid buffer detachment when sending data to pdf.js workers
+      const originalPdfBytes = arrayBuffer.slice(0)
 
       // Dynamically import pdfjs-dist to avoid SSR issues
       const pdfjsLib = await import("pdfjs-dist")
 
       // Configure PDF.js worker
       if (typeof window !== "undefined") {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`
+        const workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString()
+        pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc
       }
 
       // Load PDF with pdfjs-dist
-      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer })
+      // Use a clone for pdf.js to avoid detaching the stored buffer
+      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer.slice(0) })
       const pdfDocument = await loadingTask.promise
 
       const pageCount = pdfDocument.numPages
       const pageOrder: string[] = []
       const pages: Record<string, PageData> = {}
-      const pageMetrics: Record<string, { width: number; height: number; pageIndex: number }> = {}
+      const pageMetrics: Record<string, { width: number; height: number; pageIndex: number; sourceIndex: number }> = {}
+
+      // Calculate source index to keep track of which PDF each page belongs to
+      const sourceIndex = state.originalPdfSources.length
 
       // Extract page metrics
       for (let i = 1; i <= pageCount; i++) {
@@ -136,34 +148,45 @@ export function usePDFState(): PDFState {
           width: viewport.width,
           height: viewport.height,
           pageIndex: i - 1, // zero-based index to reference the original PDF page
+          sourceIndex,
         }
       }
 
-      setState({
-        document: {
-          name: file.name,
-          createdAt: new Date().toISOString(),
-          pageOrder,
-        },
-        pages,
-        pagination: {
-          enabled: false,
-          position: "bottom-center",
-          startAt: 1,
-        },
-        originalPdfBytes: arrayBuffer,
-        pageMetrics,
+      setState((prev) => {
+        const isFirst = !prev.document
+        const mergedPageOrder = isFirst ? pageOrder : [...prev.document!.pageOrder, ...pageOrder]
+        const mergedPages = isFirst ? pages : { ...prev.pages, ...pages }
+        const mergedMetrics = isFirst ? pageMetrics : { ...prev.pageMetrics, ...pageMetrics }
+
+        return {
+          document: isFirst
+            ? {
+                name: file.name,
+                createdAt: new Date().toISOString(),
+                pageOrder: mergedPageOrder,
+              }
+            : {
+                ...prev.document!,
+                pageOrder: mergedPageOrder,
+              },
+          pages: mergedPages,
+          pagination: prev.pagination,
+          // Keep legacy field for compatibility (first PDF only)
+          originalPdfBytes: prev.originalPdfBytes ?? originalPdfBytes,
+          originalPdfSources: [...prev.originalPdfSources, originalPdfBytes],
+          pageMetrics: mergedMetrics,
+        }
       })
-      setCurrentPageId(pageOrder[0])
+      setCurrentPageId((prev) => prev ?? pageOrder[0])
     } catch (error) {
       console.error("Failed to load PDF:", error)
       alert("Failed to load PDF. Please try again.")
     }
-  }, [])
+  }, [state.originalPdfSources.length])
 
   const saveState = useCallback(() => {
     // Exclude originalPdfBytes from JSON serialization
-    const { originalPdfBytes, pageMetrics, ...serializableState } = state
+    const { originalPdfBytes, originalPdfSources, pageMetrics, ...serializableState } = state
     return JSON.stringify(serializableState, null, 2)
   }, [state])
 
@@ -173,7 +196,12 @@ export function usePDFState(): PDFState {
       // Merge with empty originalPdfBytes and pageMetrics
       setState({
         ...loadedState,
+        pagination: {
+          backgroundBox: false,
+          ...loadedState.pagination,
+        },
         originalPdfBytes: null,
+        originalPdfSources: [],
         pageMetrics: {},
       })
       if (loadedState.document?.pageOrder.length > 0) {
@@ -405,7 +433,7 @@ export function usePDFState(): PDFState {
   }, [])
 
   const exportPDF = useCallback(async () => {
-    if (!state.originalPdfBytes || !state.document) {
+    if (!state.originalPdfSources.length || !state.document) {
       alert("No PDF loaded to export")
       return
     }
@@ -415,14 +443,19 @@ export function usePDFState(): PDFState {
       const { exportFinalPDF } = await import("@/lib/pdf-export")
 
       // Generate the final PDF
-      const pdfBytes = await exportFinalPDF(state.originalPdfBytes, state)
+      const pdfBytes = await exportFinalPDF(state.originalPdfSources, state)
+
+      // Ask for filename, fallback to original name with suffix
+      const defaultName = state.document.name.replace(/\.pdf$/i, "") + "-edited.pdf"
+      const desiredName = typeof window !== "undefined" ? window.prompt("Nombre del archivo a exportar:", defaultName) : defaultName
+      const fileName = desiredName && desiredName.trim() ? desiredName.trim().replace(/\.pdf$/i, "") + ".pdf" : defaultName
 
       // Download the PDF
       const blob = new Blob([pdfBytes], { type: "application/pdf" })
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = state.document.name.replace(".pdf", "-edited.pdf")
+      a.download = fileName
       a.click()
       URL.revokeObjectURL(url)
     } catch (error) {

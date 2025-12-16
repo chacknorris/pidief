@@ -8,7 +8,7 @@ Se ha implementado exitosamente un sistema completo de composición y exportaci�
 2. ✅ Almacenar el PDF original como inmutable
 3. ✅ Aplicar overlays (texto, highlights, underlines) de forma no-destructiva
 4. ✅ Exportar PDFs finales con todos los overlays aplicados
-5. ✅ Mantener el estado JSON como única fuente de verdad
+5. ✅ Mantener el estado JSON como única fuente de verdad -
 
 ## 🆕 Novedades Recientes
 
@@ -17,7 +17,10 @@ Se ha implementado exitosamente un sistema completo de composición y exportaci�
 - Export respeta `pageOrder` copiando páginas del PDF original (usa `pageIndex` guardado en `pageMetrics`), soportando reordenamientos y duplicados.
 - Normalización en export ahora usa las dimensiones reales de la página (no solo 612×792), lo que alinea overlays con PDFs no-LETTER.
 - `pageMetrics` incluye `pageIndex` y se clona al duplicar páginas para mantener el mapeo al PDF fuente.
-- Worker de pdfjs-dist ahora apunta a `unpkg.com` para evitar 404 en `cdnjs` (carga estable del worker).
+- Worker de pdfjs-dist ahora usa el worker local empaquetado (sin CDN) para evitar 404 externos.
+- Tests automatizados con Vitest para asegurar:
+  - Normalización/denormalización de coordenadas y conversión de Y canvas→PDF.
+  - Export respeta `pageOrder` y `pageIndex` al copiar páginas del PDF original.
 
 ## 📋 Decisiones Técnicas Implementadas
 
