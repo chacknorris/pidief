@@ -135,7 +135,7 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
       const pdfjsLib = await import("pdfjs-dist")
 
       if (typeof window !== "undefined") {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`
       }
 
       const loadingTask = pdfjsLib.getDocument({ data: state.originalPdfBytes })

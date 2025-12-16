@@ -108,7 +108,7 @@ export function usePDFState(): PDFState {
 
       // Configure PDF.js worker
       if (typeof window !== "undefined") {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`
       }
 
       // Load PDF with pdfjs-dist
