@@ -1,12 +1,6 @@
 "use client"
 
 import { useState, useCallback } from "react"
-import * as pdfjsLib from "pdfjs-dist"
-
-// Configure PDF.js worker
-if (typeof window !== "undefined") {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
-}
 
 export interface TextElement {
   id: string
@@ -108,6 +102,14 @@ export function usePDFState(): PDFState {
     try {
       // Read the file as ArrayBuffer
       const arrayBuffer = await file.arrayBuffer()
+
+      // Dynamically import pdfjs-dist to avoid SSR issues
+      const pdfjsLib = await import("pdfjs-dist")
+
+      // Configure PDF.js worker
+      if (typeof window !== "undefined") {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
+      }
 
       // Load PDF with pdfjs-dist
       const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer })
