@@ -30,7 +30,7 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
       const pdfjsLib = await import("pdfjs-dist")
 
       if (typeof window !== "undefined") {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`
       }
 
       const loadingTask = pdfjsLib.getDocument({ data: state.originalPdfBytes })

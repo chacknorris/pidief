@@ -17,6 +17,7 @@ Se ha implementado exitosamente un sistema completo de composición y exportaci�
 - Export respeta `pageOrder` copiando páginas del PDF original (usa `pageIndex` guardado en `pageMetrics`), soportando reordenamientos y duplicados.
 - Normalización en export ahora usa las dimensiones reales de la página (no solo 612×792), lo que alinea overlays con PDFs no-LETTER.
 - `pageMetrics` incluye `pageIndex` y se clona al duplicar páginas para mantener el mapeo al PDF fuente.
+- Worker de pdfjs-dist ahora apunta a `unpkg.com` para evitar 404 en `cdnjs` (carga estable del worker).
 
 ## 📋 Decisiones Técnicas Implementadas
 
