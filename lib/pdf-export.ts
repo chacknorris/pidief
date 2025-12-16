@@ -14,30 +14,40 @@ export async function exportFinalPDF(
   documentState: DocumentState
 ): Promise<Uint8Array> {
   try {
-    // Load the original PDF using pdf-lib
-    const pdfDoc = await PDFDocument.load(originalPdfBytes)
-
-    // Get pages in the order specified by documentState
-    const pages = pdfDoc.getPages()
     const { document: doc, pagination, pageMetrics } = documentState
 
     if (!doc) {
       throw new Error("No document in state")
     }
 
-    // Iterate through pages according to the stored page order
-    for (let i = 0; i < doc.pageOrder.length; i++) {
-      const pageId = doc.pageOrder[i]
-      const page = pages[i]
-      const pageData = documentState.pages[pageId]
-      const metrics = pageMetrics[pageId]
+    // Build a new PDF so we can respect the current page order
+    const sourcePdf = await PDFDocument.load(originalPdfBytes)
+    const pdfDoc = await PDFDocument.create()
 
-      if (!page || !pageData || !metrics) continue
+    const pageEntries = doc.pageOrder.map((pageId, index) => ({
+      pageId,
+      metrics: pageMetrics[pageId],
+      sourceIndex: pageMetrics[pageId]?.pageIndex ?? index,
+    }))
+
+    const copiedPages = await pdfDoc.copyPages(
+      sourcePdf,
+      pageEntries.map((entry) => entry.sourceIndex),
+    )
+
+    for (let i = 0; i < pageEntries.length; i++) {
+      const { pageId, metrics } = pageEntries[i]
+      const pageData = documentState.pages[pageId]
+      const page = copiedPages[i]
+
+      if (!page || !pageData) continue
+
+      pdfDoc.addPage(page)
 
       const { width: pageWidth, height: pageHeight } = page.getSize()
+      const { width: canvasWidth, height: canvasHeight } = getCanvasSize(metrics)
 
-      // ===== ITERATION 1: PAGE NUMBERS ONLY =====
-      // Render page numbers if pagination is enabled
+      // ===== PAGE NUMBERS =====
       if (pagination.enabled) {
         const pageNumber = i + pagination.startAt
         const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
@@ -48,8 +58,6 @@ export async function exportFinalPDF(
         let x = 0
         let y = 0
 
-        // Calculate position based on pagination settings
-        // PDF coordinates: bottom-left origin, Y grows upward
         switch (pagination.position) {
           case "bottom-center":
             x = (pageWidth - textWidth) / 2
@@ -74,40 +82,26 @@ export async function exportFinalPDF(
         })
       }
 
-      // ===== ITERATION 2: TEXT ELEMENTS =====
-      // Render text elements
+      // ===== TEXT =====
       if (pageData.texts && pageData.texts.length > 0) {
-        // Use canvas dimensions for coordinate normalization (612x792 standard)
-        const CANVAS_WIDTH = 612
-        const CANVAS_HEIGHT = 792
-
         for (const textElement of pageData.texts) {
-          // Normalize coordinates (absolute pixels → percentages)
-          const normalizedX = textElement.x / CANVAS_WIDTH
-          const normalizedY = textElement.y / CANVAS_HEIGHT
-          const normalizedWidth = textElement.width / CANVAS_WIDTH
-          const normalizedHeight = textElement.height / CANVAS_HEIGHT
+          const normalizedX = textElement.x / canvasWidth
+          const normalizedY = textElement.y / canvasHeight
+          const normalizedWidth = textElement.width / canvasWidth
+          const normalizedHeight = textElement.height / canvasHeight
 
-          // Denormalize to actual page dimensions
           const absoluteX = normalizedX * pageWidth
           const absoluteY = normalizedY * pageHeight
           const absoluteHeight = normalizedHeight * pageHeight
 
-          // Convert canvas coordinates (top-left) to PDF coordinates (bottom-left)
           const pdfY = canvasToPdfY(absoluteY, absoluteHeight, pageHeight)
 
-          // Load font (bold if requested, fallback to regular)
           const font = textElement.bold
             ? await pdfDoc.embedFont(StandardFonts.HelveticaBold).catch(() => pdfDoc.embedFont(StandardFonts.Helvetica))
             : await pdfDoc.embedFont(StandardFonts.Helvetica)
 
-          // Scale font size proportionally to page dimensions
-          const scaledFontSize = (textElement.fontSize * pageHeight) / CANVAS_HEIGHT
-
-          // Parse color (hex to RGB)
+          const scaledFontSize = (textElement.fontSize * pageHeight) / canvasHeight
           const color = hexToRgb(textElement.color)
-
-          // Calculate text position based on alignment
           const textWidth = font.widthOfTextAtSize(textElement.content, scaledFontSize)
           const absoluteWidth = normalizedWidth * pageWidth
 
@@ -122,11 +116,9 @@ export async function exportFinalPDF(
             case "justify":
             case "left":
             default:
-              // Left alignment (default)
               break
           }
 
-          // Draw text
           page.drawText(textElement.content, {
             x: finalX,
             y: pdfY,
@@ -137,32 +129,22 @@ export async function exportFinalPDF(
         }
       }
 
-      // ===== ITERATION 3: HIGHLIGHTS AND UNDERLINES =====
-      // Render highlights
+      // ===== HIGHLIGHTS =====
       if (pageData.highlights && pageData.highlights.length > 0) {
-        const CANVAS_WIDTH = 612
-        const CANVAS_HEIGHT = 792
-
         for (const highlight of pageData.highlights) {
-          // Normalize coordinates
-          const normalizedX = highlight.x / CANVAS_WIDTH
-          const normalizedY = highlight.y / CANVAS_HEIGHT
-          const normalizedWidth = highlight.width / CANVAS_WIDTH
-          const normalizedHeight = highlight.height / CANVAS_HEIGHT
+          const normalizedX = highlight.x / canvasWidth
+          const normalizedY = highlight.y / canvasHeight
+          const normalizedWidth = highlight.width / canvasWidth
+          const normalizedHeight = highlight.height / canvasHeight
 
-          // Denormalize to actual page dimensions
           const absoluteX = normalizedX * pageWidth
           const absoluteY = normalizedY * pageHeight
           const absoluteWidth = normalizedWidth * pageWidth
           const absoluteHeight = normalizedHeight * pageHeight
 
-          // Convert to PDF coordinates
           const pdfY = canvasToPdfY(absoluteY, absoluteHeight, pageHeight)
-
-          // Parse color and apply opacity
           const color = hexToRgb(highlight.color)
 
-          // Draw rectangle with opacity
           page.drawRectangle({
             x: absoluteX,
             y: pdfY,
@@ -174,31 +156,22 @@ export async function exportFinalPDF(
         }
       }
 
-      // Render underlines
+      // ===== UNDERLINES =====
       if (pageData.underlines && pageData.underlines.length > 0) {
-        const CANVAS_WIDTH = 612
-        const CANVAS_HEIGHT = 792
-
         for (const underline of pageData.underlines) {
-          // Normalize coordinates
-          const normalizedX = underline.x / CANVAS_WIDTH
-          const normalizedY = underline.y / CANVAS_HEIGHT
-          const normalizedWidth = underline.width / CANVAS_WIDTH
-          const normalizedHeight = underline.height / CANVAS_HEIGHT
+          const normalizedX = underline.x / canvasWidth
+          const normalizedY = underline.y / canvasHeight
+          const normalizedWidth = underline.width / canvasWidth
+          const normalizedHeight = underline.height / canvasHeight
 
-          // Denormalize to actual page dimensions
           const absoluteX = normalizedX * pageWidth
           const absoluteY = normalizedY * pageHeight
           const absoluteWidth = normalizedWidth * pageWidth
           const absoluteHeight = normalizedHeight * pageHeight
 
-          // Convert to PDF coordinates
           const pdfY = canvasToPdfY(absoluteY, absoluteHeight, pageHeight)
-
-          // Parse color
           const color = hexToRgb(underline.color)
 
-          // Draw rectangle (thin line)
           page.drawRectangle({
             x: absoluteX,
             y: pdfY,
@@ -210,9 +183,7 @@ export async function exportFinalPDF(
       }
     }
 
-    // Save and return the PDF
-    const pdfBytes = await pdfDoc.save()
-    return pdfBytes
+    return pdfDoc.save()
   } catch (error) {
     console.error("Failed to export PDF:", error)
     throw error
@@ -272,6 +243,21 @@ export function denormalizeCoordinates(
  */
 export function canvasToPdfY(canvasY: number, elementHeight: number, pageHeight: number): number {
   return pageHeight - canvasY - elementHeight
+}
+
+function getCanvasSize(
+  metrics?: { width: number; height: number },
+): { width: number; height: number } {
+  const DEFAULT_WIDTH = 612
+  const DEFAULT_HEIGHT = 792
+
+  if (metrics?.width && metrics?.height) {
+    const width = DEFAULT_WIDTH
+    const height = (metrics.height / metrics.width) * width
+    return { width, height }
+  }
+
+  return { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT }
 }
 
 /**

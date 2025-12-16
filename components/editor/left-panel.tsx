@@ -1,7 +1,7 @@
 "use client"
 
-import type React from "react"
-import { useState } from "react"
+import React from "react"
+import { useEffect, useRef, useState } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { Copy, Trash2 } from "lucide-react"
@@ -15,6 +15,41 @@ interface LeftPanelProps {
 export function LeftPanel({ pdfState }: LeftPanelProps) {
   const { state, currentPageId, setCurrentPageId, duplicatePage, deletePage, reorderPages } = pdfState
   const [dragOverId, setDragOverId] = useState<string | null>(null)
+  const pdfDocRef = useRef<any>(null)
+  const [pdfDocVersion, setPdfDocVersion] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadPdfDocument() {
+      if (!state.originalPdfBytes) {
+        pdfDocRef.current = null
+        return
+      }
+
+      const pdfjsLib = await import("pdfjs-dist")
+
+      if (typeof window !== "undefined") {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
+      }
+
+      const loadingTask = pdfjsLib.getDocument({ data: state.originalPdfBytes })
+      const pdfDocument = await loadingTask.promise
+
+      if (!cancelled) {
+        pdfDocRef.current = pdfDocument
+        setPdfDocVersion((v) => v + 1)
+      } else {
+        loadingTask.destroy?.()
+      }
+    }
+
+    loadPdfDocument()
+
+    return () => {
+      cancelled = true
+    }
+  }, [state.originalPdfBytes])
 
   if (!state.document) {
     return (
@@ -79,10 +114,10 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
               <div className="mb-1 flex items-center justify-between">
                 <span className="text-xs font-medium text-card-foreground">Page {index + 1}</span>
                 <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-6 w-6 p-0"
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 w-6 p-0"
                     onClick={(e) => {
                       e.stopPropagation()
                       duplicatePage(pageId)
@@ -104,11 +139,68 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
                   </Button>
                 </div>
               </div>
-              <div className="aspect-[3/4] rounded border border-border bg-muted" />
+              <PageThumbnail
+                pageOrderIndex={index}
+                metrics={state.pageMetrics[pageId]}
+                pdfDocRef={pdfDocRef}
+                pdfDocVersion={pdfDocVersion}
+              />
             </div>
           ))}
         </div>
       </ScrollArea>
     </div>
   )
+}
+
+interface PageThumbnailProps {
+  pageOrderIndex: number
+  metrics?: { width: number; height: number; pageIndex: number }
+  pdfDocRef: React.MutableRefObject<any>
+  pdfDocVersion: number
+}
+
+function PageThumbnail({ metrics, pageOrderIndex, pdfDocRef, pdfDocVersion }: PageThumbnailProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function renderThumbnail() {
+      const canvas = canvasRef.current
+      const pdfDoc = pdfDocRef.current
+      if (!canvas || !pdfDoc) return
+
+      const pageIndex = metrics?.pageIndex ?? pageOrderIndex
+      const page = await pdfDoc.getPage(pageIndex + 1)
+      if (cancelled) return
+
+      const targetWidth = 140
+      const targetHeight =
+        metrics?.width && metrics?.height ? (metrics.height / metrics.width) * targetWidth : 180
+      const sourceWidth = metrics?.width ?? page.view?.[2] ?? targetWidth
+      const scale = targetWidth / sourceWidth
+      const viewport = page.getViewport({ scale })
+
+      const context = canvas.getContext("2d")
+      if (!context) return
+
+      canvas.width = viewport.width
+      canvas.height = viewport.height
+      canvas.style.width = `${targetWidth}px`
+      canvas.style.height = `${targetHeight}px`
+      context.clearRect(0, 0, canvas.width, canvas.height)
+
+      const renderTask = page.render({ canvasContext: context, viewport })
+      await renderTask.promise
+    }
+
+    renderThumbnail()
+
+    return () => {
+      cancelled = true
+    }
+  }, [metrics, pageOrderIndex, pdfDocRef, pdfDocVersion])
+
+  return <canvas ref={canvasRef} className="w-full rounded border border-border bg-muted" />
 }

@@ -57,7 +57,7 @@ export interface DocumentState {
   }
   // PDF original data (not serialized to JSON)
   originalPdfBytes: ArrayBuffer | null
-  pageMetrics: Record<string, { width: number; height: number }>
+  pageMetrics: Record<string, { width: number; height: number; pageIndex: number }>
 }
 
 export interface PDFState {
@@ -118,7 +118,7 @@ export function usePDFState(): PDFState {
       const pageCount = pdfDocument.numPages
       const pageOrder: string[] = []
       const pages: Record<string, PageData> = {}
-      const pageMetrics: Record<string, { width: number; height: number }> = {}
+      const pageMetrics: Record<string, { width: number; height: number; pageIndex: number }> = {}
 
       // Extract page metrics
       for (let i = 1; i <= pageCount; i++) {
@@ -135,6 +135,7 @@ export function usePDFState(): PDFState {
         pageMetrics[pageId] = {
           width: viewport.width,
           height: viewport.height,
+          pageIndex: i - 1, // zero-based index to reference the original PDF page
         }
       }
 
@@ -333,6 +334,10 @@ export function usePDFState(): PDFState {
           ...prev.pages,
           [newPageId]: JSON.parse(JSON.stringify(prev.pages[pageId])),
         },
+        pageMetrics: {
+          ...prev.pageMetrics,
+          [newPageId]: prev.pageMetrics[pageId],
+        },
       }
     })
   }, [])
@@ -353,6 +358,9 @@ export function usePDFState(): PDFState {
             pageOrder: newPageOrder,
           },
           pages: newPages,
+          pageMetrics: Object.fromEntries(
+            Object.entries(prev.pageMetrics).filter(([id]) => id !== pageId),
+          ),
         }
       })
 

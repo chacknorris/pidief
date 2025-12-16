@@ -27,7 +27,10 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
   } = pdfState
 
   const [zoom, setZoom] = useState(1)
+  const [pdfDocVersion, setPdfDocVersion] = useState(0)
   const canvasRef = useRef<HTMLDivElement>(null)
+  const pdfCanvasRef = useRef<HTMLCanvasElement>(null)
+  const pdfDocRef = useRef<any>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0, elementX: 0, elementY: 0 })
   const [isResizing, setIsResizing] = useState(false)
@@ -35,6 +38,20 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
 
   const currentPageIndex = state.document?.pageOrder.indexOf(currentPageId || "") ?? -1
   const currentPage = currentPageId ? state.pages[currentPageId] : null
+  const currentPageMetrics = currentPageId ? state.pageMetrics[currentPageId] : undefined
+
+  const canvasSize = React.useMemo(() => {
+    const DEFAULT_WIDTH = 612
+    const DEFAULT_HEIGHT = 792
+
+    if (currentPageMetrics?.width && currentPageMetrics?.height) {
+      const width = DEFAULT_WIDTH
+      const height = (currentPageMetrics.height / currentPageMetrics.width) * width
+      return { width, height }
+    }
+
+    return { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT }
+  }, [currentPageMetrics])
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains("canvas-layer")) {
@@ -105,6 +122,85 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
   const handleResizeEnd = () => {
     setIsResizing(false)
   }
+
+  React.useEffect(() => {
+    let cancelled = false
+
+    async function loadPdfDocument() {
+      if (!state.originalPdfBytes) {
+        pdfDocRef.current = null
+        return
+      }
+
+      const pdfjsLib = await import("pdfjs-dist")
+
+      if (typeof window !== "undefined") {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
+      }
+
+      const loadingTask = pdfjsLib.getDocument({ data: state.originalPdfBytes })
+      const pdfDocument = await loadingTask.promise
+
+      if (!cancelled) {
+        pdfDocRef.current = pdfDocument
+        setPdfDocVersion((v) => v + 1)
+      } else {
+        loadingTask.destroy?.()
+      }
+    }
+
+    loadPdfDocument()
+
+    return () => {
+      cancelled = true
+    }
+  }, [state.originalPdfBytes])
+
+  React.useEffect(() => {
+    let cancelled = false
+
+    async function renderCurrentPage() {
+      const canvas = pdfCanvasRef.current
+      const pdfDoc = pdfDocRef.current
+
+      if (!canvas || !pdfDoc || !currentPageId || !state.document) return
+
+      const pageIndex = state.pageMetrics[currentPageId]?.pageIndex ?? state.document.pageOrder.indexOf(currentPageId)
+      if (pageIndex < 0) return
+
+      const page = await pdfDoc.getPage(pageIndex + 1)
+
+      if (cancelled) return
+
+      const sourceWidth = currentPageMetrics?.width ?? page.view?.[2] ?? canvasSize.width
+      const scale = canvasSize.width / sourceWidth
+      const viewport = page.getViewport({ scale })
+
+      const context = canvas.getContext("2d")
+      if (!context) return
+
+      canvas.width = viewport.width
+      canvas.height = viewport.height
+      context.clearRect(0, 0, canvas.width, canvas.height)
+
+      const renderTask = page.render({ canvasContext: context, viewport })
+      await renderTask.promise
+    }
+
+    renderCurrentPage()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    canvasSize.height,
+    canvasSize.width,
+    currentPageId,
+    currentPageMetrics,
+    pdfDocVersion,
+    state.document,
+    state.pageMetrics,
+  ])
 
   React.useEffect(() => {
     if (isDragging) {
@@ -184,18 +280,25 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
 
       {/* Canvas */}
       <div className="flex-1 overflow-auto p-8">
-        <div className="mx-auto" style={{ width: `${612 * zoom}px` }}>
+        <div className="mx-auto" style={{ width: `${canvasSize.width * zoom}px` }}>
           <div
             ref={canvasRef}
             className="canvas-layer relative mx-auto bg-white shadow-lg"
             style={{
-              width: `${612 * zoom}px`,
-              height: `${792 * zoom}px`,
+              width: `${canvasSize.width}px`,
+              height: `${canvasSize.height}px`,
               transform: `scale(${zoom})`,
               transformOrigin: "top left",
             }}
             onClick={handleCanvasClick}
           >
+            <canvas
+              ref={pdfCanvasRef}
+              className="absolute inset-0 h-full w-full rounded bg-white"
+              style={{ pointerEvents: "none" }}
+              width={canvasSize.width}
+              height={canvasSize.height}
+            />
             {/* Highlights */}
             {currentPage.highlights?.map((highlight) => (
               <div

@@ -10,6 +10,14 @@ Se ha implementado exitosamente un sistema completo de composición y exportaci�
 4. ✅ Exportar PDFs finales con todos los overlays aplicados
 5. ✅ Mantener el estado JSON como única fuente de verdad
 
+## 🆕 Novedades Recientes
+
+- Render real de la página en el canvas central con pdfjs-dist, dimensionado con `pageMetrics` (overlay y zoom permanecen coherentes).
+- Miniaturas reales en el panel izquierdo generadas desde el PDF original.
+- Export respeta `pageOrder` copiando páginas del PDF original (usa `pageIndex` guardado en `pageMetrics`), soportando reordenamientos y duplicados.
+- Normalización en export ahora usa las dimensiones reales de la página (no solo 612×792), lo que alinea overlays con PDFs no-LETTER.
+- `pageMetrics` incluye `pageIndex` y se clona al duplicar páginas para mantener el mapeo al PDF fuente.
+
 ## 📋 Decisiones Técnicas Implementadas
 
 ### 1. Bibliotecas Utilizadas
@@ -40,9 +48,10 @@ DocumentState {
     startAt: number
   }
   originalPdfBytes: ArrayBuffer    // PDF original inmutable
-  pageMetrics: Record<string, {    // Dimensiones reales
+  pageMetrics: Record<string, {    // Dimensiones reales + referencia a página original
     width: number
     height: number
+    pageIndex: number   // índice 0-based en el PDF original
   }>
 }
 ```
@@ -381,53 +390,22 @@ npm start
 
 ## 🚧 Limitaciones Conocidas
 
-### No Implementado (Fuera del Alcance)
-
-1. **Renderizado visual del PDF en canvas:**
-   - Actualmente: Fondo blanco con overlays
-   - Razón: Funcionalidad de export era la prioridad
-   - Siguiente paso: Usar pdfjs para renderizar páginas
-
-2. **Thumbnails de páginas:**
-   - Actualmente: Placeholders vacíos
-   - Razón: Export era la prioridad
-   - Siguiente paso: Renderizar con pdfjs en small scale
-
-3. **Edición de texto original del PDF:**
-   - No soportado (por diseño)
-   - Razón: PDF original es inmutable
-
-4. **OCR o extracción de texto:**
-   - No soportado (por diseño)
-   - Razón: Fuera del alcance, sin backend
-
-5. **Fuentes personalizadas:**
-   - Solo Helvetica y HelveticaBold
-   - Razón: pdf-lib requiere archivos de fuentes
-   - Workaround: Usar fuentes estándar de PDF
+1. Sincronización de scroll/vista multipágina pendiente (solo se muestra una página a la vez).
+2. Undo/Redo y atajos de teclado aún no implementados.
+3. Edición de texto original del PDF: no soportado (por diseño, PDF inmutable).
+4. OCR o extracción de texto: no soportado (sin backend, fuera del alcance).
+5. Fuentes personalizadas: solo Helvetica/HelveticaBold (pdf-lib requiere archivos de fuentes).
 
 ## 🎯 Próximos Pasos Sugeridos
 
-### Fase 2: Renderizado Visual
-
 **Prioridad Alta:**
-1. Renderizar páginas PDF en canvas con pdfjs
-2. Generar thumbnails de páginas
-3. Sincronizar scroll con páginas
-
-**Implementación estimada:**
-- Usar `pdfPage.render()` de pdfjs
-- Renderizar en canvas HTML
-- Overlay elementos encima del canvas
-
-### Fase 3: Mejoras de UX
+1. Vista multipágina con sincronía entre scroll y miniaturas (aprovechando renders ya generados).
+2. Undo/Redo + atajos de teclado (Delete, Cmd/Ctrl+Z, duplicar elemento).
+3. Multi-select y copy/paste entre páginas.
 
 **Prioridad Media:**
-1. Undo/Redo (stack de operaciones)
-2. Keyboard shortcuts (Ctrl+Z, Delete, etc.)
-3. Multi-select de elementos
-4. Copy/paste entre páginas
-5. Templates de overlays
+1. Plantillas de overlays y duplicación guiada entre páginas.
+2. Importar imágenes como overlays (extiende shapes actuales).
 
 ### Fase 4: Features Avanzadas
 
