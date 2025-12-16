@@ -73,6 +73,7 @@ export interface PDFState {
   loadPDF: (file: File) => Promise<void>
   saveState: () => string
   loadState: (json: string) => void
+  exportPDF: () => Promise<void>
   setCurrentPageId: (id: string) => void
   setSelectedElement: (id: string | null) => void
   addTextElement: (x: number, y: number) => void
@@ -393,6 +394,33 @@ export function usePDFState(): PDFState {
     }))
   }, [])
 
+  const exportPDF = useCallback(async () => {
+    if (!state.originalPdfBytes || !state.document) {
+      alert("No PDF loaded to export")
+      return
+    }
+
+    try {
+      // Dynamically import exportFinalPDF to avoid SSR issues
+      const { exportFinalPDF } = await import("@/lib/pdf-export")
+
+      // Generate the final PDF
+      const pdfBytes = await exportFinalPDF(state.originalPdfBytes, state)
+
+      // Download the PDF
+      const blob = new Blob([pdfBytes], { type: "application/pdf" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = state.document.name.replace(".pdf", "-edited.pdf")
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error("Failed to export PDF:", error)
+      alert("Failed to export PDF. Please try again.")
+    }
+  }, [state])
+
   return {
     state,
     currentPageId,
@@ -400,6 +428,7 @@ export function usePDFState(): PDFState {
     loadPDF,
     saveState,
     loadState,
+    exportPDF,
     setCurrentPageId,
     setSelectedElement,
     addTextElement,

@@ -1,7 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { FileUp, Download, FolderOpen } from "lucide-react"
+import { FileUp, Download, FolderOpen, FileDown } from "lucide-react"
 import type { PDFState } from "@/hooks/use-pdf-state"
 
 interface TopBarProps {
@@ -9,7 +9,7 @@ interface TopBarProps {
 }
 
 export function TopBar({ pdfState }: TopBarProps) {
-  const { loadPDF, saveState, loadState } = pdfState
+  const { loadPDF, saveState, loadState, exportPDF, state } = pdfState
 
   const handleImportPDF = () => {
     const input = document.createElement("input")
@@ -62,6 +62,11 @@ export function TopBar({ pdfState }: TopBarProps) {
       <Button onClick={handleLoadJSON} variant="outline" size="sm">
         <FolderOpen className="mr-2 h-4 w-4" />
         Load JSON
+      </Button>
+      <div className="ml-2 h-8 w-px bg-border" />
+      <Button onClick={exportPDF} variant="default" size="sm" disabled={!state.originalPdfBytes}>
+        <FileDown className="mr-2 h-4 w-4" />
+        Export PDF
       </Button>
     </div>
   )
