@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f8fafc" />
+      <stop offset="100%" stop-color="#e2e8f0" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)" />
+  <rect x="80" y="80" width="1040" height="470" rx="24" fill="#ffffff" stroke="#e5e7eb" stroke-width="2" />
+  <rect x="120" y="140" width="320" height="24" rx="12" fill="#ef4444" />
+  <rect x="120" y="190" width="520" height="20" rx="10" fill="#f59e0b" />
+  <rect x="120" y="230" width="600" height="20" rx="10" fill="#94a3b8" />
+  <rect x="120" y="270" width="560" height="20" rx="10" fill="#94a3b8" />
+  <text x="120" y="370" font-family="Arial, sans-serif" font-size="64" fill="#0f172a">PDF Editor</text>
+  <text x="120" y="430" font-family="Arial, sans-serif" font-size="30" fill="#334155">Annotate and manage PDFs in your browser</text>
+</svg>
