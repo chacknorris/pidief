@@ -54,6 +54,12 @@ export interface HighlightElement {
   height: number
   color: string
   opacity: number
+  fillColor?: string
+  fillOpacity?: number
+  borderColor?: string
+  borderOpacity?: number
+  style: "fill" | "border" | "both"
+  borderWidth: number
 }
 
 export interface ArrowElement {
@@ -180,7 +186,15 @@ export function deserializeDocumentState(
       Object.entries(loadedState.pages).forEach(([id, page]) => {
         normalizedPages[id] = {
           texts: page.texts || [],
-          highlights: page.highlights || [],
+          highlights: (page.highlights || []).map((highlight: any) => ({
+            ...highlight,
+            style: highlight.style === "border" || highlight.style === "both" ? highlight.style : "fill",
+            borderWidth: typeof highlight.borderWidth === "number" ? highlight.borderWidth : 2,
+            fillColor: typeof highlight.fillColor === "string" ? highlight.fillColor : highlight.color ?? "#ffff00",
+            fillOpacity: typeof highlight.fillOpacity === "number" ? highlight.fillOpacity : highlight.opacity ?? 0.3,
+            borderColor: typeof highlight.borderColor === "string" ? highlight.borderColor : highlight.color ?? "#ff0000",
+            borderOpacity: typeof highlight.borderOpacity === "number" ? highlight.borderOpacity : 1,
+          })),
           arrows: (page.arrows || []).map((ar: any) => ({
             ...ar,
             angle: typeof ar.angle === "number" ? ar.angle : 0,
@@ -210,6 +224,7 @@ export function deserializeDocumentState(
         y: highlight.y * scale,
         width: highlight.width * scale,
         height: highlight.height * scale,
+        borderWidth: (highlight.borderWidth ?? 2) * scale,
       })),
       arrows: page.arrows.map((arrow) => ({
         ...arrow,
@@ -470,6 +485,12 @@ export function usePDFState(): PDFState {
       height: 50,
       color: "#ffff00",
       opacity: 0.3,
+      fillColor: "#ffff00",
+      fillOpacity: 0.3,
+      borderColor: "#ff0000",
+      borderOpacity: 1,
+      style: "both",
+      borderWidth: 2,
     }
 
     setState((prev) => {

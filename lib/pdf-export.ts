@@ -165,15 +165,24 @@ export async function exportFinalPDF(
             { width: pageWidth, height: pageHeight },
             useTransform ? metrics?.transform : undefined,
           )
-          const color = hexToRgb(highlight.color)
+          const showFill = highlight.style !== "border"
+          const showBorder = highlight.style !== "fill"
+          const fillColor = hexToRgb(highlight.fillColor ?? highlight.color)
+          const borderColor = hexToRgb(highlight.borderColor ?? highlight.color)
+          const fillOpacity = highlight.fillOpacity ?? highlight.opacity
+          const borderOpacity = highlight.borderOpacity ?? highlight.opacity
+          const borderWidth = showBorder ? Math.max(1, (highlight.borderWidth ?? 2) * mapped.scale) : 0
 
           page.drawRectangle({
             x: mapped.x,
             y: mapped.y,
             width: mapped.width,
             height: mapped.height,
-            color: rgb(color.r, color.g, color.b),
-            opacity: highlight.opacity,
+            color: showFill ? rgb(fillColor.r, fillColor.g, fillColor.b) : undefined,
+            opacity: showFill ? fillOpacity : undefined,
+            borderColor: showBorder ? rgb(borderColor.r, borderColor.g, borderColor.b) : undefined,
+            borderWidth: showBorder ? borderWidth : undefined,
+            borderOpacity: showBorder ? borderOpacity : undefined,
           })
         }
       }

@@ -197,29 +197,92 @@ export function RightPanel({ pdfState }: RightPanelProps) {
               <>
                 <div className="space-y-2">
                   <Label htmlFor="highlightColor" className="text-xs">
-                    {copy.rightPanel.color}
+                    {copy.rightPanel.highlightFillColor}
                   </Label>
                   <Input
                     id="highlightColor"
                     type="color"
-                    value={element.color}
-                    onChange={(e) => updateElement(element.id, { color: e.target.value })}
+                    value={element.fillColor ?? element.color}
+                    onChange={(e) =>
+                      updateElement(element.id, { fillColor: e.target.value, color: e.target.value })
+                    }
                     className="h-8"
                   />
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="highlightStyle" className="text-xs">
+                    {copy.rightPanel.highlightStyle}
+                  </Label>
+                  <Select
+                    value={element.style ?? "fill"}
+                    onValueChange={(value) => updateElement(element.id, { style: value })}
+                  >
+                    <SelectTrigger id="highlightStyle" className="h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fill">{copy.rightPanel.highlightStyleFill}</SelectItem>
+                      <SelectItem value="border">{copy.rightPanel.highlightStyleBorder}</SelectItem>
+                      <SelectItem value="both">{copy.rightPanel.highlightStyleBoth}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="opacity" className="text-xs">
-                    {copy.rightPanel.highlightOpacity(element.opacity)}
+                    {copy.rightPanel.highlightFillOpacity(element.fillOpacity ?? element.opacity)}
                   </Label>
                   <Slider
                     id="opacity"
                     min={0}
                     max={1}
                     step={0.1}
-                    value={[element.opacity]}
-                    onValueChange={([value]) => updateElement(element.id, { opacity: value })}
+                    value={[element.fillOpacity ?? element.opacity]}
+                    onValueChange={([value]) =>
+                      updateElement(element.id, { fillOpacity: value, opacity: value })
+                    }
                   />
                 </div>
+                {element.style !== "fill" && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="highlightBorderColor" className="text-xs">
+                        {copy.rightPanel.highlightBorderColor}
+                      </Label>
+                      <Input
+                        id="highlightBorderColor"
+                        type="color"
+                        value={element.borderColor ?? element.color}
+                        onChange={(e) => updateElement(element.id, { borderColor: e.target.value })}
+                        className="h-8"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="borderOpacity" className="text-xs">
+                        {copy.rightPanel.highlightBorderOpacity(element.borderOpacity ?? element.opacity)}
+                      </Label>
+                      <Slider
+                        id="borderOpacity"
+                        min={0}
+                        max={1}
+                        step={0.1}
+                        value={[element.borderOpacity ?? element.opacity]}
+                        onValueChange={([value]) => updateElement(element.id, { borderOpacity: value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="borderWidth" className="text-xs">
+                        {copy.rightPanel.highlightBorderWidth}
+                      </Label>
+                      <Input
+                        id="borderWidth"
+                        type="number"
+                        value={element.borderWidth}
+                        onChange={(e) => updateElement(element.id, { borderWidth: Number.parseInt(e.target.value) })}
+                        className="h-8"
+                      />
+                    </div>
+                  </>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="width" className="text-xs">
                     {copy.rightPanel.width}

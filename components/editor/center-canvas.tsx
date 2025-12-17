@@ -15,6 +15,21 @@ interface CenterCanvasProps {
   pdfState: PDFState
 }
 
+function hexToRgba(hex: string, opacity: number): string {
+  let normalized = hex.replace(/^#/, "")
+  if (normalized.length === 3) {
+    normalized = normalized
+      .split("")
+      .map((char) => char + char)
+      .join("")
+  }
+  const r = Number.parseInt(normalized.substring(0, 2), 16)
+  const g = Number.parseInt(normalized.substring(2, 4), 16)
+  const b = Number.parseInt(normalized.substring(4, 6), 16)
+  const alpha = Math.max(0, Math.min(1, opacity))
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
 export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
   const {
     state,
@@ -560,38 +575,49 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
               height={canvasSize.height}
             />
             {/* Highlights */}
-            {currentPage.highlights?.map((highlight) => (
-              <div
-                key={highlight.id}
-                data-element-id={highlight.id}
-                className={cn(
-                  "absolute cursor-move border-2 transition-colors group",
-                  selectedElements.includes(highlight.id)
-                    ? "border-primary"
-                    : "border-transparent hover:border-primary/50",
-                )}
-                style={{
-                  left: highlight.x,
-                  top: highlight.y,
-                  width: highlight.width,
-                  height: highlight.height,
-                  backgroundColor: highlight.color,
-                  opacity: highlight.opacity,
-                }}
-                onClick={(e) => handleElementClick(e, highlight.id)}
-                onMouseDown={(e) => handleDragStart(e, highlight.id)}
-              >
-                {selectedElements.includes(highlight.id) && (
-                  <div
-                    className="absolute bottom-0 right-0 h-3 w-3 cursor-se-resize bg-primary"
-                    style={{
-                      transform: "translate(50%, 50%)",
-                    }}
-                    onMouseDown={(e) => handleResizeStart(e, highlight.id, highlight)}
-                  />
-                )}
-              </div>
-            ))}
+            {currentPage.highlights?.map((highlight) => {
+              const selected = selectedElements.includes(highlight.id)
+              const showFill = highlight.style !== "border"
+              const showBorder = highlight.style !== "fill"
+              const fillColor = showFill
+                ? hexToRgba(highlight.fillColor ?? highlight.color, highlight.fillOpacity ?? highlight.opacity)
+                : "transparent"
+              const borderColor = showBorder
+                ? hexToRgba(highlight.borderColor ?? highlight.color, highlight.borderOpacity ?? highlight.opacity)
+                : "transparent"
+              const borderWidth = showBorder ? highlight.borderWidth ?? 2 : 0
+
+              return (
+                <div
+                  key={highlight.id}
+                  data-element-id={highlight.id}
+                  className={cn(
+                    "absolute cursor-move transition-shadow group",
+                    selected ? "ring-2 ring-primary" : "hover:ring-2 hover:ring-primary/50",
+                  )}
+                  style={{
+                    left: highlight.x,
+                    top: highlight.y,
+                    width: highlight.width,
+                    height: highlight.height,
+                    backgroundColor: fillColor,
+                    border: showBorder ? `${borderWidth}px solid ${borderColor}` : "none",
+                  }}
+                  onClick={(e) => handleElementClick(e, highlight.id)}
+                  onMouseDown={(e) => handleDragStart(e, highlight.id)}
+                >
+                  {selected && (
+                    <div
+                      className="absolute bottom-0 right-0 h-3 w-3 cursor-se-resize bg-primary"
+                      style={{
+                        transform: "translate(50%, 50%)",
+                      }}
+                      onMouseDown={(e) => handleResizeStart(e, highlight.id, highlight)}
+                    />
+                  )}
+                </div>
+              )
+            })}
 
             {/* Arrows */}
             {currentPage.arrows?.map((arrow) => {

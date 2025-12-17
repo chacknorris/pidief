@@ -32,6 +32,15 @@ type Copy = {
     bold: string
     textAlign: string
     highlightOpacity: (value: number) => string
+    highlightStyle: string
+    highlightStyleFill: string
+    highlightStyleBorder: string
+    highlightStyleBoth: string
+    highlightFillColor: string
+    highlightFillOpacity: (value: number) => string
+    highlightBorderColor: string
+    highlightBorderOpacity: (value: number) => string
+    highlightBorderWidth: string
     width: string
     height: string
     thickness: string
@@ -81,6 +90,15 @@ const copy: Record<Lang, Copy> = {
       bold: "Bold",
       textAlign: "Text Alignment",
       highlightOpacity: (value) => `Opacity: ${Math.round(value * 100)}%`,
+      highlightStyle: "Highlight Style",
+      highlightStyleFill: "Fill",
+      highlightStyleBorder: "Border",
+      highlightStyleBoth: "Both",
+      highlightFillColor: "Fill Color",
+      highlightFillOpacity: (value) => `Fill Opacity: ${Math.round(value * 100)}%`,
+      highlightBorderColor: "Border Color",
+      highlightBorderOpacity: (value) => `Border Opacity: ${Math.round(value * 100)}%`,
+      highlightBorderWidth: "Border Width",
       width: "Width",
       height: "Height",
       thickness: "Thickness",
@@ -128,6 +146,15 @@ const copy: Record<Lang, Copy> = {
       bold: "Negrita",
       textAlign: "Alineación",
       highlightOpacity: (value) => `Opacidad: ${Math.round(value * 100)}%`,
+      highlightStyle: "Estilo de resaltado",
+      highlightStyleFill: "Relleno",
+      highlightStyleBorder: "Borde",
+      highlightStyleBoth: "Ambos",
+      highlightFillColor: "Color de relleno",
+      highlightFillOpacity: (value) => `Opacidad del relleno: ${Math.round(value * 100)}%`,
+      highlightBorderColor: "Color del borde",
+      highlightBorderOpacity: (value) => `Opacidad del borde: ${Math.round(value * 100)}%`,
+      highlightBorderWidth: "Grosor del borde",
       width: "Ancho",
       height: "Alto",
       thickness: "Grosor",
