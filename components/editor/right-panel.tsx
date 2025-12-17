@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Slider } from "@/components/ui/slider"
-import { Trash2, Type, Highlighter, Minus, AlignLeft, AlignCenter, AlignRight, AlignJustify } from "lucide-react"
+import { Trash2, Type, Highlighter, AlignLeft, AlignCenter, AlignRight, AlignJustify, ArrowRight } from "lucide-react"
 import type { PDFState } from "@/hooks/use-pdf-state"
 
 interface RightPanelProps {
@@ -18,19 +18,24 @@ export function RightPanel({ pdfState }: RightPanelProps) {
   const {
     state,
     currentPageId,
-    selectedElement,
+    selectedElements,
+    addMode,
+    setAddMode,
     updateElement,
     deleteElement,
+    deleteElements,
     addHighlight,
-    addUnderline,
+    addArrow,
     updatePagination,
   } = pdfState
 
   const currentPage = currentPageId ? state.pages[currentPageId] : null
   const allElements = currentPage
-    ? [...(currentPage.texts || []), ...(currentPage.highlights || []), ...(currentPage.underlines || [])]
+    ? [...(currentPage.texts || []), ...(currentPage.highlights || []), ...(currentPage.arrows || [])]
     : []
-  const element = allElements.find((el) => el.id === selectedElement)
+  const primaryElementId = selectedElements[selectedElements.length - 1] || null
+  const element = allElements.find((el) => el.id === primaryElementId)
+  const multiSelected = selectedElements.length > 1
 
   return (
     <div className="flex w-80 flex-col border-l border-border bg-sidebar">
@@ -47,14 +52,10 @@ export function RightPanel({ pdfState }: RightPanelProps) {
               size="sm"
               variant="outline"
               className="flex flex-col gap-1 h-auto py-3 bg-transparent"
-              onClick={() => {
-                const x = 100
-                const y = 100
-                pdfState.addTextElement(x, y)
-              }}
+              onClick={() => setAddMode(addMode === "text" ? null : "text")}
             >
               <Type className="h-4 w-4" />
-              <span className="text-xs">Text</span>
+              <span className="text-xs">{addMode === "text" ? "Click to place" : "Text"}</span>
             </Button>
             <Button
               size="sm"
@@ -69,10 +70,10 @@ export function RightPanel({ pdfState }: RightPanelProps) {
               size="sm"
               variant="outline"
               className="flex flex-col gap-1 h-auto py-3 bg-transparent"
-              onClick={() => addUnderline()}
+              onClick={() => addArrow()}
             >
-              <Minus className="h-4 w-4" />
-              <span className="text-xs">Underline</span>
+              <ArrowRight className="h-4 w-4" />
+              <span className="text-xs">Arrow</span>
             </Button>
           </div>
         </div>
@@ -80,17 +81,38 @@ export function RightPanel({ pdfState }: RightPanelProps) {
         <Separator />
 
         {/* Element Properties */}
-        {element && (
+        {(element || multiSelected) && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Selected Element</h3>
-              <Button size="sm" variant="ghost" onClick={() => deleteElement(element.id)} className="h-7 w-7 p-0">
+              <div className="space-y-1">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {multiSelected ? `Selected (${selectedElements.length})` : "Selected Element"}
+                </h3>
+                {multiSelected && (
+                  <p className="text-xs text-muted-foreground">
+                    Shift o Cmd/Ctrl + click para sumar o quitar elementos y moverlos en bloque.
+                  </p>
+                )}
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() =>
+                  multiSelected && selectedElements.length
+                    ? deleteElements(selectedElements)
+                    : element
+                      ? deleteElement(element.id)
+                      : undefined
+                }
+                className="h-7 w-7 p-0"
+                disabled={!element && !multiSelected}
+              >
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
             </div>
 
             {/* Text Properties */}
-            {"content" in element && (
+            {element && "content" in element && (
               <>
                 <div className="space-y-2">
                   <Label htmlFor="fontSize" className="text-xs">
@@ -167,7 +189,7 @@ export function RightPanel({ pdfState }: RightPanelProps) {
             )}
 
             {/* Highlight Properties */}
-            {"opacity" in element && (
+            {element && "opacity" in element && (
               <>
                 <div className="space-y-2">
                   <Label htmlFor="highlightColor" className="text-xs">
@@ -221,15 +243,15 @@ export function RightPanel({ pdfState }: RightPanelProps) {
               </>
             )}
 
-            {/* Underline Properties */}
-            {"width" in element && !("opacity" in element) && (
+            {/* Arrow Properties */}
+            {element && "thickness" in element && (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="underlineColor" className="text-xs">
+                  <Label htmlFor="arrowColor" className="text-xs">
                     Color
                   </Label>
                   <Input
-                    id="underlineColor"
+                    id="arrowColor"
                     type="color"
                     value={element.color}
                     onChange={(e) => updateElement(element.id, { color: e.target.value })}
@@ -237,28 +259,20 @@ export function RightPanel({ pdfState }: RightPanelProps) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="underlineWidth" className="text-xs">
-                    Width
-                  </Label>
-                  <Input
-                    id="underlineWidth"
-                    type="number"
-                    value={element.width}
-                    onChange={(e) => updateElement(element.id, { width: Number.parseInt(e.target.value) })}
-                    className="h-8"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="underlineHeight" className="text-xs">
-                    Height
-                  </Label>
-                  <Input
-                    id="underlineHeight"
-                    type="number"
-                    value={element.height}
-                    onChange={(e) => updateElement(element.id, { height: Number.parseInt(e.target.value) })}
-                    className="h-8"
-                  />
+                  <Label className="text-xs">Thickness</Label>
+                  <div className="grid grid-cols-5 gap-1">
+                    {[1, 2, 3, 4, 5].map((t) => (
+                      <Button
+                        key={t}
+                        size="sm"
+                        variant={element.thickness === t ? "default" : "outline"}
+                        className="h-8 w-full p-0"
+                        onClick={() => updateElement(element.id, { thickness: t })}
+                      >
+                        {t}px
+                      </Button>
+                    ))}
+                  </div>
                 </div>
               </>
             )}

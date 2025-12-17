@@ -1,6 +1,14 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { FileUp, Download, FolderOpen, FileDown } from "lucide-react"
 import type { PDFState } from "@/hooks/use-pdf-state"
 
@@ -9,7 +17,7 @@ interface TopBarProps {
 }
 
 export function TopBar({ pdfState }: TopBarProps) {
-  const { loadPDF, saveState, loadState, exportPDF, state } = pdfState
+  const { loadPDF, saveState, loadState, exportPDF, state, updateLanguage } = pdfState
 
   const handleImportPDF = () => {
     const input = document.createElement("input")
@@ -68,6 +76,40 @@ export function TopBar({ pdfState }: TopBarProps) {
         <FileDown className="mr-2 h-4 w-4" />
         Export PDF
       </Button>
+      <div className="ml-auto">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm">
+              Menu
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+            <DropdownMenuItem onClick={handleSaveJSON}>
+              <Download className="mr-2 h-4 w-4" />
+              Save JSON
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLoadJSON}>
+              <FolderOpen className="mr-2 h-4 w-4" />
+              Load JSON
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>Language</DropdownMenuLabel>
+            <DropdownMenuItem
+              onClick={() => updateLanguage("en")}
+              className={state.language === "en" ? "font-semibold text-primary" : ""}
+            >
+              English
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => updateLanguage("es")}
+              className={state.language === "es" ? "font-semibold text-primary" : ""}
+            >
+              Español
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </div>
   )
 }

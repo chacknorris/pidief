@@ -1,6 +1,35 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useRef, useEffect } from "react"
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  if (typeof Buffer !== "undefined") {
+    return Buffer.from(buffer).toString("base64")
+  }
+
+  let binary = ""
+  const bytes = new Uint8Array(buffer)
+  const chunk = 0x8000
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
+  }
+  return btoa(binary)
+}
+
+function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  if (typeof Buffer !== "undefined") {
+    const buf = Buffer.from(base64, "base64")
+    return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
+  }
+
+  const binary = atob(base64)
+  const len = binary.length
+  const bytes = new Uint8Array(len)
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  return bytes.buffer
+}
 
 export interface TextElement {
   id: string
@@ -27,20 +56,22 @@ export interface HighlightElement {
   opacity: number
 }
 
-export interface UnderlineElement {
+export interface ArrowElement {
   id: string
-  type: "underline"
+  type: "arrow"
   x: number
   y: number
   width: number
   height: number
   color: string
+  thickness: number
+  angle: number
 }
 
 export interface PageData {
   texts: TextElement[]
   highlights: HighlightElement[]
-  underlines: UnderlineElement[]
+  arrows: ArrowElement[]
 }
 
 export interface DocumentState {
@@ -56,6 +87,7 @@ export interface DocumentState {
     startAt: number
     backgroundBox: boolean
   }
+  language: "en" | "es"
   // Legacy single PDF reference (kept for backward compatibility, not serialized)
   originalPdfBytes: ArrayBuffer | null
   // Multiple PDF sources to allow merging/ordering across imports
@@ -66,22 +98,29 @@ export interface DocumentState {
 export interface PDFState {
   state: DocumentState
   currentPageId: string | null
-  selectedElement: string | null
+  selectedElements: string[]
+  addMode: "text" | null
   loadPDF: (file: File) => Promise<void>
   saveState: () => string
   loadState: (json: string) => void
   exportPDF: () => Promise<void>
   setCurrentPageId: (id: string) => void
-  setSelectedElement: (id: string | null) => void
+  setSelectedElements: (ids: string[]) => void
+  toggleElementSelection: (id: string, additive: boolean) => void
+  setAddMode: (mode: PDFState["addMode"]) => void
   addTextElement: (x: number, y: number) => void
   addHighlight: () => void
-  addUnderline: () => void
+  addArrow: () => void
   updateElement: (id: string, updates: any) => void
+  updateElements: (updates: Record<string, any>) => void
   deleteElement: (id: string) => void
+  deleteElements: (ids: string[]) => void
   duplicatePage: (pageId: string) => void
   deletePage: (pageId: string) => void
   reorderPages: (draggedId: string, targetId: string) => void
   updatePagination: (updates: Partial<DocumentState["pagination"]>) => void
+  updateLanguage: (lang: DocumentState["language"]) => void
+  undo: () => void
 }
 
 const initialState: DocumentState = {
@@ -93,15 +132,119 @@ const initialState: DocumentState = {
     startAt: 1,
     backgroundBox: false,
   },
+  language: "en",
   originalPdfBytes: null,
   originalPdfSources: [],
   pageMetrics: {},
 }
 
+export function serializeDocumentState(state: DocumentState): string {
+  const serializableState = {
+    ...state,
+    originalPdfBytes: state.originalPdfBytes ? arrayBufferToBase64(state.originalPdfBytes) : null,
+    originalPdfSources: state.originalPdfSources.map((src) => arrayBufferToBase64(src)),
+  }
+  return JSON.stringify(serializableState, null, 2)
+}
+
+export function deserializeDocumentState(
+  json: string,
+): { state: DocumentState; currentPageId: string | null } | null {
+  try {
+    const loadedState = JSON.parse(json)
+
+    const decodedSources = Array.isArray(loadedState.originalPdfSources)
+      ? loadedState.originalPdfSources
+          .map((src: unknown) => (typeof src === "string" ? base64ToArrayBuffer(src) : null))
+          .filter((src): src is ArrayBuffer => Boolean(src))
+      : []
+
+    const decodedOriginalPdf =
+      typeof loadedState.originalPdfBytes === "string" ? base64ToArrayBuffer(loadedState.originalPdfBytes) : null
+
+    const nextPageMetrics =
+      loadedState.pageMetrics && typeof loadedState.pageMetrics === "object" ? loadedState.pageMetrics : {}
+
+    const nextCurrentPageId = loadedState.document?.pageOrder?.[0] ?? null
+
+    const normalizedPages: Record<string, PageData> = {}
+    if (loadedState.pages && typeof loadedState.pages === "object") {
+      Object.entries(loadedState.pages).forEach(([id, page]) => {
+        normalizedPages[id] = {
+          texts: page.texts || [],
+          highlights: page.highlights || [],
+          arrows: (page.arrows || []).map((ar: any) => ({
+            ...ar,
+            angle: typeof ar.angle === "number" ? ar.angle : 0,
+          })),
+        }
+      })
+    }
+
+    const restoredState: DocumentState = {
+      ...loadedState,
+      pages: normalizedPages,
+      pagination: {
+        backgroundBox: false,
+        ...loadedState.pagination,
+      },
+      language: loadedState.language === "es" ? "es" : "en",
+      originalPdfBytes: decodedOriginalPdf,
+      originalPdfSources: decodedSources,
+      pageMetrics: nextPageMetrics,
+    }
+
+    return { state: restoredState, currentPageId: nextCurrentPageId }
+  } catch (error) {
+    console.error("Failed to load state:", error)
+    return null
+  }
+}
+
+function cloneDocumentState(state: DocumentState): DocumentState {
+  const pages: Record<string, PageData> = {}
+  Object.entries(state.pages).forEach(([id, page]) => {
+    pages[id] = {
+      texts: page.texts.map((t) => ({ ...t })),
+      highlights: page.highlights.map((h) => ({ ...h })),
+      arrows: page.arrows.map((a) => ({ ...a })),
+    }
+  })
+
+  return {
+    document: state.document
+      ? { ...state.document, pageOrder: [...state.document.pageOrder] }
+      : null,
+    pages,
+    pagination: { ...state.pagination },
+    language: state.language,
+    originalPdfBytes: state.originalPdfBytes,
+    originalPdfSources: state.originalPdfSources,
+    pageMetrics: { ...state.pageMetrics },
+  }
+}
+
 export function usePDFState(): PDFState {
   const [state, setState] = useState<DocumentState>(initialState)
   const [currentPageId, setCurrentPageId] = useState<string | null>(null)
-  const [selectedElement, setSelectedElement] = useState<string | null>(null)
+  const [selectedElements, setSelectedElements] = useState<string[]>([])
+  const [addMode, setAddMode] = useState<PDFState["addMode"]>(null)
+  const historyRef = useRef<DocumentState[]>([])
+
+  const pushHistory = useCallback((snapshot: DocumentState) => {
+    historyRef.current = [...historyRef.current.slice(-19), cloneDocumentState(snapshot)]
+  }, [])
+
+  const toggleElementSelection = useCallback((id: string, additive: boolean) => {
+    setSelectedElements((prev) => {
+      if (additive) {
+        return prev.includes(id) ? prev.filter((el) => el !== id) : [...prev, id]
+      }
+      return [id]
+    })
+  }, [])
+
+  const clearSelection = useCallback(() => setSelectedElements([]), [])
 
   const loadPDF = useCallback(async (file: File) => {
     try {
@@ -138,12 +281,12 @@ export function usePDFState(): PDFState {
         const viewport = page.getViewport({ scale: 1.0 })
 
         const pageId = `page-${Date.now()}-${i}`
-        pageOrder.push(pageId)
-        pages[pageId] = {
-          texts: [],
-          highlights: [],
-          underlines: [],
-        }
+      pageOrder.push(pageId)
+      pages[pageId] = {
+        texts: [],
+        highlights: [],
+        arrows: [],
+      }
         pageMetrics[pageId] = {
           width: viewport.width,
           height: viewport.height,
@@ -153,6 +296,7 @@ export function usePDFState(): PDFState {
       }
 
       setState((prev) => {
+        pushHistory(prev)
         const isFirst = !prev.document
         const mergedPageOrder = isFirst ? pageOrder : [...prev.document!.pageOrder, ...pageOrder]
         const mergedPages = isFirst ? pages : { ...prev.pages, ...pages }
@@ -184,33 +328,37 @@ export function usePDFState(): PDFState {
     }
   }, [state.originalPdfSources.length])
 
-  const saveState = useCallback(() => {
-    // Exclude originalPdfBytes from JSON serialization
-    const { originalPdfBytes, originalPdfSources, pageMetrics, ...serializableState } = state
-    return JSON.stringify(serializableState, null, 2)
-  }, [state])
+  const saveState = useCallback(() => serializeDocumentState(state), [state])
 
   const loadState = useCallback((json: string) => {
-    try {
-      const loadedState = JSON.parse(json)
-      // Merge with empty originalPdfBytes and pageMetrics
-      setState({
-        ...loadedState,
-        pagination: {
-          backgroundBox: false,
-          ...loadedState.pagination,
-        },
-        originalPdfBytes: null,
-        originalPdfSources: [],
-        pageMetrics: {},
-      })
-      if (loadedState.document?.pageOrder.length > 0) {
-        setCurrentPageId(loadedState.document.pageOrder[0])
-      }
-    } catch (error) {
-      console.error("Failed to load state:", error)
-    }
+    const restored = deserializeDocumentState(json)
+    if (!restored) return
+
+    setState(restored.state)
+    setCurrentPageId(restored.currentPageId)
+    setSelectedElements([])
+    setAddMode(null)
   }, [])
+
+  useEffect(() => {
+    const browserLang =
+      typeof navigator !== "undefined" && navigator.language?.toLowerCase().startsWith("es") ? "es" : "en"
+    setState((prev) => {
+      if (prev.language !== "en" || prev.document) return prev
+      return { ...prev, language: browserLang }
+    })
+  }, [])
+
+  const updateLanguage = useCallback(
+    (lang: DocumentState["language"]) => {
+      setState((prev) => {
+        if (prev.language === lang) return prev
+        pushHistory(prev)
+        return { ...prev, language: lang }
+      })
+    },
+    [pushHistory],
+  )
 
   const addTextElement = useCallback(
     (x: number, y: number) => {
@@ -230,19 +378,22 @@ export function usePDFState(): PDFState {
         textAlign: "left",
       }
 
-      setState((prev) => ({
-        ...prev,
-        pages: {
-          ...prev.pages,
-          [currentPageId]: {
-            ...prev.pages[currentPageId],
-            texts: [...(prev.pages[currentPageId]?.texts || []), newText],
+      setState((prev) => {
+        pushHistory(prev)
+        return {
+          ...prev,
+          pages: {
+            ...prev.pages,
+            [currentPageId]: {
+              ...prev.pages[currentPageId],
+              texts: [...(prev.pages[currentPageId]?.texts || []), newText],
+            },
           },
-        },
-      }))
-      setSelectedElement(newText.id)
+        }
+      })
+      setSelectedElements([newText.id])
     },
-    [currentPageId],
+    [currentPageId, pushHistory],
   )
 
   const addHighlight = useCallback(() => {
@@ -259,59 +410,68 @@ export function usePDFState(): PDFState {
       opacity: 0.3,
     }
 
-    setState((prev) => ({
-      ...prev,
-      pages: {
-        ...prev.pages,
-        [currentPageId]: {
-          ...prev.pages[currentPageId],
-          highlights: [...(prev.pages[currentPageId]?.highlights || []), newHighlight],
+    setState((prev) => {
+      pushHistory(prev)
+      return {
+        ...prev,
+        pages: {
+          ...prev.pages,
+          [currentPageId]: {
+            ...prev.pages[currentPageId],
+            highlights: [...(prev.pages[currentPageId]?.highlights || []), newHighlight],
+          },
         },
-      },
-    }))
-    setSelectedElement(newHighlight.id)
-  }, [currentPageId])
+      }
+    })
+    setSelectedElements([newHighlight.id])
+  }, [currentPageId, pushHistory])
 
-  const addUnderline = useCallback(() => {
+  const addArrow = useCallback(() => {
     if (!currentPageId) return
 
-    const newUnderline: UnderlineElement = {
-      id: `underline-${Date.now()}`,
-      type: "underline",
-      x: 100,
-      y: 200,
-      width: 200,
-      height: 2,
+    const newArrow: ArrowElement = {
+      id: `arrow-${Date.now()}`,
+      type: "arrow",
+      x: 80,
+      y: 120,
+      width: 220,
+      height: 40,
       color: "#000000",
+      thickness: 2,
+      angle: 0,
     }
 
-    setState((prev) => ({
-      ...prev,
-      pages: {
-        ...prev.pages,
-        [currentPageId]: {
-          ...prev.pages[currentPageId],
-          underlines: [...(prev.pages[currentPageId]?.underlines || []), newUnderline],
+    setState((prev) => {
+      pushHistory(prev)
+      return {
+        ...prev,
+        pages: {
+          ...prev.pages,
+          [currentPageId]: {
+            ...prev.pages[currentPageId],
+            arrows: [...(prev.pages[currentPageId]?.arrows || []), newArrow],
+          },
         },
-      },
-    }))
-    setSelectedElement(newUnderline.id)
-  }, [currentPageId])
+      }
+    })
+    setSelectedElements([newArrow.id])
+  }, [currentPageId, pushHistory])
 
-  const updateElement = useCallback(
-    (id: string, updates: any) => {
+  const updateElements = useCallback(
+    (updates: Record<string, any>) => {
       if (!currentPageId) return
 
       setState((prev) => {
-        const page = prev.pages[currentPageId]
+        pushHistory(prev)
+        const page = prev.pages[currentPageId] ?? { texts: [], highlights: [], arrows: [] }
         return {
           ...prev,
           pages: {
             ...prev.pages,
             [currentPageId]: {
-              texts: page.texts.map((el) => (el.id === id ? { ...el, ...updates } : el)),
-              highlights: page.highlights.map((el) => (el.id === id ? { ...el, ...updates } : el)),
-              underlines: page.underlines.map((el) => (el.id === id ? { ...el, ...updates } : el)),
+              texts: page.texts.map((el) => (updates[el.id] ? { ...el, ...updates[el.id] } : el)),
+              highlights: page.highlights.map((el) => (updates[el.id] ? { ...el, ...updates[el.id] } : el)),
+              arrows: page.arrows.map((el) => (updates[el.id] ? { ...el, ...updates[el.id] } : el)),
             },
           },
         }
@@ -320,12 +480,21 @@ export function usePDFState(): PDFState {
     [currentPageId],
   )
 
+  const updateElement = useCallback(
+    (id: string, updates: any) => {
+      updateElements({ [id]: updates })
+    },
+    [updateElements],
+  )
+
   const deleteElement = useCallback(
     (id: string) => {
+      if (!id) return
       if (!currentPageId) return
 
       setState((prev) => {
-        const page = prev.pages[currentPageId]
+        pushHistory(prev)
+        const page = prev.pages[currentPageId] ?? { texts: [], highlights: [], arrows: [] }
         return {
           ...prev,
           pages: {
@@ -333,20 +502,45 @@ export function usePDFState(): PDFState {
             [currentPageId]: {
               texts: page.texts.filter((el) => el.id !== id),
               highlights: page.highlights.filter((el) => el.id !== id),
-              underlines: page.underlines.filter((el) => el.id !== id),
+              arrows: page.arrows.filter((el) => el.id !== id),
             },
           },
         }
       })
-      setSelectedElement(null)
+      clearSelection()
     },
-    [currentPageId],
+    [clearSelection, currentPageId],
+  )
+
+  const deleteElements = useCallback(
+    (ids: string[]) => {
+      if (!currentPageId || !ids.length) return
+
+      setState((prev) => {
+        pushHistory(prev)
+        const page = prev.pages[currentPageId] ?? { texts: [], highlights: [], arrows: [] }
+        return {
+          ...prev,
+          pages: {
+            ...prev.pages,
+            [currentPageId]: {
+              texts: page.texts.filter((el) => !ids.includes(el.id)),
+              highlights: page.highlights.filter((el) => !ids.includes(el.id)),
+              arrows: page.arrows.filter((el) => !ids.includes(el.id)),
+            },
+          },
+        }
+      })
+      clearSelection()
+    },
+    [clearSelection, currentPageId],
   )
 
   const duplicatePage = useCallback((pageId: string) => {
     setState((prev) => {
       if (!prev.document) return prev
 
+      pushHistory(prev)
       const newPageId = `page-${Date.now()}`
       const pageIndex = prev.document.pageOrder.indexOf(pageId)
       const newPageOrder = [...prev.document.pageOrder]
@@ -372,12 +566,21 @@ export function usePDFState(): PDFState {
 
   const deletePage = useCallback(
     (pageId: string) => {
+      let nextPageId: string | null = null
+      let changed = false
+
       setState((prev) => {
         if (!prev.document || prev.document.pageOrder.length === 1) return prev
 
+        pushHistory(prev)
         const newPageOrder = prev.document.pageOrder.filter((id) => id !== pageId)
         const newPages = { ...prev.pages }
         delete newPages[pageId]
+
+        const removedIndex = prev.document.pageOrder.indexOf(pageId)
+        const fallbackIndex = Math.min(removedIndex, newPageOrder.length - 1)
+        nextPageId = newPageOrder[fallbackIndex] ?? null
+        changed = true
 
         return {
           ...prev,
@@ -392,19 +595,19 @@ export function usePDFState(): PDFState {
         }
       })
 
-      if (currentPageId === pageId && state.document) {
-        const index = state.document.pageOrder.indexOf(pageId)
-        const newIndex = Math.max(0, index - 1)
-        setCurrentPageId(state.document.pageOrder[newIndex])
+      if (changed) {
+        setCurrentPageId(nextPageId)
+        setSelectedElements([])
       }
     },
-    [currentPageId, state.document],
+    [setCurrentPageId, setSelectedElements],
   )
 
   const reorderPages = useCallback((draggedId: string, targetId: string) => {
     setState((prev) => {
       if (!prev.document) return prev
 
+      pushHistory(prev)
       const newPageOrder = [...prev.document.pageOrder]
       const draggedIndex = newPageOrder.indexOf(draggedId)
       const targetIndex = newPageOrder.indexOf(targetId)
@@ -423,14 +626,17 @@ export function usePDFState(): PDFState {
   }, [])
 
   const updatePagination = useCallback((updates: Partial<DocumentState["pagination"]>) => {
-    setState((prev) => ({
-      ...prev,
-      pagination: {
-        ...prev.pagination,
-        ...updates,
-      },
-    }))
-  }, [])
+    setState((prev) => {
+      pushHistory(prev)
+      return {
+        ...prev,
+        pagination: {
+          ...prev.pagination,
+          ...updates,
+        },
+      }
+    })
+  }, [pushHistory])
 
   const exportPDF = useCallback(async () => {
     if (!state.originalPdfSources.length || !state.document) {
@@ -464,24 +670,43 @@ export function usePDFState(): PDFState {
     }
   }, [state])
 
+  const undo = useCallback(() => {
+    const snapshot = historyRef.current.pop()
+    if (!snapshot) return
+    setState(snapshot)
+    const nextPage =
+      snapshot.document && currentPageId && snapshot.document.pageOrder.includes(currentPageId)
+        ? currentPageId
+        : snapshot.document?.pageOrder[0] ?? null
+    setCurrentPageId(nextPage)
+    setSelectedElements([])
+  }, [currentPageId])
+
   return {
     state,
     currentPageId,
-    selectedElement,
+    selectedElements,
+    addMode,
     loadPDF,
     saveState,
     loadState,
     exportPDF,
     setCurrentPageId,
-    setSelectedElement,
+    setSelectedElements,
+    toggleElementSelection,
+    setAddMode,
     addTextElement,
     addHighlight,
-    addUnderline,
+    addArrow,
     updateElement,
+    updateElements,
     deleteElement,
+    deleteElements,
     duplicatePage,
     deletePage,
     reorderPages,
     updatePagination,
+    updateLanguage,
+    undo,
   }
 }

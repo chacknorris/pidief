@@ -40,8 +40,8 @@ describe("exportFinalPDF", () => {
         pageOrder: ["page-b", "page-a"], // reverse order
       },
       pages: {
-        "page-a": { texts: [], highlights: [], underlines: [] },
-        "page-b": { texts: [], highlights: [], underlines: [] },
+        "page-a": { texts: [], highlights: [], arrows: [] },
+        "page-b": { texts: [], highlights: [], arrows: [] },
       },
       pagination: { enabled: false, position: "bottom-center", startAt: 1, backgroundBox: false },
       originalPdfBytes: toArrayBuffer(sourceBytes),
@@ -85,8 +85,8 @@ describe("exportFinalPDF", () => {
         pageOrder: ["page-a", "page-b"],
       },
       pages: {
-        "page-a": { texts: [], highlights: [], underlines: [] },
-        "page-b": { texts: [], highlights: [], underlines: [] },
+        "page-a": { texts: [], highlights: [], arrows: [] },
+        "page-b": { texts: [], highlights: [], arrows: [] },
       },
       pagination: { enabled: false, position: "bottom-center", startAt: 1, backgroundBox: false },
       originalPdfBytes: toArrayBuffer(bytesA),

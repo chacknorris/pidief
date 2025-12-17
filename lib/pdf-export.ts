@@ -176,13 +176,13 @@ export async function exportFinalPDF(
         }
       }
 
-      // ===== UNDERLINES =====
-      if (pageData.underlines && pageData.underlines.length > 0) {
-        for (const underline of pageData.underlines) {
-          const normalizedX = underline.x / canvasWidth
-          const normalizedY = underline.y / canvasHeight
-          const normalizedWidth = underline.width / canvasWidth
-          const normalizedHeight = underline.height / canvasHeight
+      // ===== ARROWS =====
+      if (pageData.arrows && pageData.arrows.length > 0) {
+        for (const arrow of pageData.arrows) {
+          const normalizedX = arrow.x / canvasWidth
+          const normalizedY = arrow.y / canvasHeight
+          const normalizedWidth = arrow.width / canvasWidth
+          const normalizedHeight = arrow.height / canvasHeight
 
           const absoluteX = normalizedX * pageWidth
           const absoluteY = normalizedY * pageHeight
@@ -190,13 +190,48 @@ export async function exportFinalPDF(
           const absoluteHeight = normalizedHeight * pageHeight
 
           const pdfY = canvasToPdfY(absoluteY, absoluteHeight, pageHeight)
-          const color = hexToRgb(underline.color)
+          const color = hexToRgb(arrow.color)
 
-          page.drawRectangle({
-            x: absoluteX,
-            y: pdfY,
-            width: absoluteWidth,
-            height: absoluteHeight,
+          const stroke = Math.max(1, (arrow.thickness * pageHeight) / canvasHeight)
+          const headSize = Math.min(
+            absoluteWidth / 2,
+            Math.max(stroke * 3, absoluteHeight * 0.35),
+          )
+          const mid = absoluteHeight / 2
+          const shaftEnd = Math.max(headSize, absoluteWidth - headSize)
+
+          const points = [
+            { x: 0, y: mid },
+            { x: shaftEnd, y: mid },
+            { x: shaftEnd, y: mid }, // duplicate for polyline start
+            { x: absoluteWidth - headSize, y: mid + headSize },
+            { x: absoluteWidth, y: mid },
+            { x: absoluteWidth - headSize, y: mid - headSize },
+          ]
+
+          const angleRad = ((arrow.angle ?? 0) * Math.PI) / 180
+          const sin = Math.sin(angleRad)
+          const cos = Math.cos(angleRad)
+
+          const rotate = (px: number, py: number) => {
+            const dx = px
+            const dy = py - mid
+            const rx = dx * cos - dy * sin
+            const ry = dx * sin + dy * cos
+            return { x: rx + absoluteX, y: ry + (pdfY + mid) }
+          }
+
+          const [p0, p1, , p2, p3, p4] = points.map((p) => rotate(p.x, p.y))
+
+          const linePath = `M ${p0.x} ${p0.y} L ${p1.x} ${p1.y}`
+          const headPath = `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} L ${p3.x} ${p3.y} L ${p4.x} ${p4.y} Z`
+
+          page.drawSvgPath(linePath, {
+            borderColor: rgb(color.r, color.g, color.b),
+            borderWidth: stroke,
+          })
+
+          page.drawSvgPath(headPath, {
             color: rgb(color.r, color.g, color.b),
           })
         }
