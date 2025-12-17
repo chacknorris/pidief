@@ -377,14 +377,18 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
       if (cancelled) return
 
       const sourceWidth = currentPageMetrics?.width ?? page.view?.[2] ?? canvasSize.width
-      const scale = canvasSize.width / sourceWidth
-      const viewport = page.getViewport({ scale })
+      const baseScale = canvasSize.width / sourceWidth
+      const pixelRatio = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1
+      const qualityScale = Math.max(1, zoom)
+      const viewport = page.getViewport({ scale: baseScale * pixelRatio * qualityScale })
 
       const context = canvas.getContext("2d")
       if (!context) return
 
       canvas.width = viewport.width
       canvas.height = viewport.height
+      canvas.style.width = `${canvasSize.width}px`
+      canvas.style.height = `${canvasSize.height}px`
       context.clearRect(0, 0, canvas.width, canvas.height)
 
       const renderTask = page.render({ canvasContext: context, viewport })
@@ -426,6 +430,7 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
     pdfDocVersion,
     state.document,
     state.pageMetrics,
+    zoom,
   ])
 
   React.useEffect(() => {
