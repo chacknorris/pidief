@@ -48,7 +48,6 @@ export function RightPanel({ pdfState }: RightPanelProps) {
       <div className="flex-1 space-y-6 overflow-auto p-4">
         {/* Add Elements */}
         <div className="space-y-3">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Add Element</h3>
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {copy.rightPanel.addElement}
           </h3>
