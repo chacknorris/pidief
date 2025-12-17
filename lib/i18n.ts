@@ -6,6 +6,7 @@ type Copy = {
     export: string
     menu: string
     language: string
+    savePrompt?: string
   }
   leftPanel: {
     pages: string
@@ -18,6 +19,8 @@ type Copy = {
   }
   rightPanel: {
     properties: string
+    save: string
+    load: string
     addElement: string
     text: (placing: boolean) => string
     highlight: string
@@ -49,10 +52,11 @@ const copy: Record<Lang, Copy> = {
   en: {
     topBar: {
       import: "Import PDF",
-      export: "Export PDF",
-      menu: "Menu",
-      language: "Language",
-    },
+    export: "Export PDF",
+    menu: "Menu",
+    language: "Language",
+    savePrompt: "File name",
+  },
     leftPanel: {
       pages: "Pages",
       empty: "No PDF loaded",
@@ -64,6 +68,8 @@ const copy: Record<Lang, Copy> = {
     },
     rightPanel: {
       properties: "Properties",
+      save: "Save JSON",
+      load: "Load JSON",
       addElement: "Add Element",
       text: (placing) => (placing ? "Click to place" : "Text"),
       highlight: "Highlight",
@@ -93,10 +99,11 @@ const copy: Record<Lang, Copy> = {
   es: {
     topBar: {
       import: "Importar PDF",
-      export: "Exportar PDF",
-      menu: "Menú",
-      language: "Idioma",
-    },
+    export: "Exportar PDF",
+    menu: "Menú",
+    language: "Idioma",
+    savePrompt: "Nombre del archivo",
+  },
     leftPanel: {
       pages: "Páginas",
       empty: "No hay PDF cargado",
@@ -108,6 +115,8 @@ const copy: Record<Lang, Copy> = {
     },
     rightPanel: {
       properties: "Propiedades",
+      save: "Guardar JSON",
+      load: "Cargar JSON",
       addElement: "Agregar elemento",
       text: (placing) => (placing ? "Click para colocar" : "Texto"),
       highlight: "Resaltado",

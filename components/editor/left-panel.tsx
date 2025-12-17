@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Copy, Trash2 } from "lucide-react"
 import type { PDFState } from "@/hooks/use-pdf-state"
 import { cn } from "@/lib/utils"
+import { getCopy } from "@/lib/i18n"
 
 interface LeftPanelProps {
   pdfState: PDFState
@@ -14,6 +15,7 @@ interface LeftPanelProps {
 
 export function LeftPanel({ pdfState }: LeftPanelProps) {
   const { state, currentPageId, setCurrentPageId, duplicatePage, deletePage, reorderPages } = pdfState
+  const copy = getCopy(state.language)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
   const pdfDocRef = useRef<Map<number, any> | null>(new Map())
   const [pdfDocVersion, setPdfDocVersion] = useState(0)
@@ -26,11 +28,25 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
         pdfDocRef.current = new Map()
       }
       if (!state.originalPdfSources.length) {
+        pdfDocRef.current?.forEach((doc) => {
+          try {
+            doc.destroy?.()
+          } catch {}
+        })
         pdfDocRef.current?.clear()
+        setPdfDocVersion((v) => v + 1)
         return
       }
 
-      const pdfjsLib = await import("pdfjs-dist")
+      let pdfjsLib: any
+      try {
+        pdfjsLib = await import("pdfjs-dist")
+      } catch (error: any) {
+        if (error?.name === "RenderingCancelledException" || error?.message?.toLowerCase().includes("rendering cancelled")) {
+          return
+        }
+        throw error
+      }
 
       if (typeof window !== "undefined") {
         const workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString()
@@ -44,19 +60,31 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
           }
           if (pdfDocRef.current.has(index)) return
           const loadingTask = pdfjsLib.getDocument({ data: bytes.slice(0) })
-          const pdfDocument = await loadingTask.promise
-
-          if (!cancelled) {
-            pdfDocRef.current?.set(index, pdfDocument)
-            setPdfDocVersion((v) => v + 1)
-          } else {
-            loadingTask.destroy?.()
+          try {
+            const pdfDocument = await loadingTask.promise
+            if (!cancelled) {
+              pdfDocRef.current?.set(index, pdfDocument)
+              setPdfDocVersion((v) => v + 1)
+            } else {
+              loadingTask.destroy?.()
+            }
+          } catch (error: any) {
+            if (error?.message?.toLowerCase().includes("rendering cancelled")) {
+              loadingTask.destroy?.()
+              return
+            }
+            console.error("Failed to load PDF source", error)
           }
         }),
       )
     }
 
-    loadPdfDocument()
+    loadPdfDocument().catch((error) => {
+      if (error?.message?.toLowerCase().includes("rendering cancelled")) {
+        return
+      }
+      console.error("Failed to load pdf document", error)
+    })
 
     return () => {
       cancelled = true
@@ -66,7 +94,7 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
   if (!state.document) {
     return (
       <div className="w-64 border-r border-border bg-sidebar p-4">
-        <p className="text-sm text-muted-foreground">No PDF loaded</p>
+        <p className="text-sm text-muted-foreground">{copy.leftPanel.empty}</p>
       </div>
     )
   }
@@ -103,7 +131,7 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
   return (
     <div className="flex w-64 flex-col border-r border-border bg-sidebar">
       <div className="border-b border-border p-3">
-        <h2 className="text-sm font-semibold text-sidebar-foreground">Pages</h2>
+        <h2 className="text-sm font-semibold text-sidebar-foreground">{copy.leftPanel.pages}</h2>
       </div>
       <ScrollArea className="flex-1">
         <div className="space-y-2 p-3">
@@ -174,6 +202,7 @@ interface PageThumbnailProps {
 
 function PageThumbnail({ metrics, pageOrderIndex, pdfDocRef, pdfDocVersion }: PageThumbnailProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const renderTaskRef = useRef<any>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -203,14 +232,39 @@ function PageThumbnail({ metrics, pageOrderIndex, pdfDocRef, pdfDocVersion }: Pa
       canvas.style.height = `${targetHeight}px`
       context.clearRect(0, 0, canvas.width, canvas.height)
 
+      if (renderTaskRef.current) {
+        try {
+          renderTaskRef.current.cancel()
+        } catch (err) {
+          console.warn("Failed to cancel thumbnail render", err)
+        }
+      }
+
       const renderTask = page.render({ canvasContext: context, viewport })
-      await renderTask.promise
+      renderTaskRef.current = renderTask
+      try {
+        await renderTask.promise
+      } catch (error: any) {
+        if (error?.name !== "RenderingCancelledException" && !error?.message?.toLowerCase().includes("rendering cancelled")) {
+          throw error
+        }
+      } finally {
+        renderTaskRef.current = null
+      }
     }
 
     renderThumbnail()
 
     return () => {
       cancelled = true
+      if (renderTaskRef.current) {
+        try {
+          renderTaskRef.current.cancel()
+        } catch (err) {
+          console.warn("Failed to cancel thumbnail render on cleanup", err)
+        }
+        renderTaskRef.current = null
+      }
     }
   }, [metrics, pageOrderIndex, pdfDocRef, pdfDocVersion])
 

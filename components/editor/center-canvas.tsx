@@ -39,6 +39,7 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
   const canvasRef = useRef<HTMLDivElement>(null)
   const pdfCanvasRef = useRef<HTMLCanvasElement>(null)
   const pdfDocRef = useRef<Map<number, any> | null>(new Map())
+  const renderTaskRef = useRef<any>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [dragStartPositions, setDragStartPositions] = useState<Record<string, { x: number; y: number }>>({})
@@ -48,6 +49,7 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
   const [resizeLockHeight, setResizeLockHeight] = useState(false)
   const [isRotating, setIsRotating] = useState(false)
   const [rotateTargetId, setRotateTargetId] = useState<string | null>(null)
+  const selectionSnapshotRef = useRef<string[]>([])
   const [selectionBox, setSelectionBox] = useState<{
     active: boolean
     startClientX: number
@@ -89,6 +91,7 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
   const handleCanvasMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault()
     const additive = e.shiftKey || e.metaKey || e.ctrlKey
+    selectionSnapshotRef.current = selectedElements
     setSelectionBox({
       active: true,
       startClientX: e.clientX,
@@ -97,9 +100,6 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
       currentClientY: e.clientY,
       additive,
     })
-    if (!additive) {
-      setSelectedElements([])
-    }
   }
 
   const handleElementClick = (e: React.MouseEvent, elementId: string) => {
@@ -208,7 +208,8 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
     }
 
     const additive = selectionBox.additive || modifierActive
-    const finalSelection = additive ? Array.from(new Set([...selectedElements, ...selected])) : selected
+    const base = selectionSnapshotRef.current
+    const finalSelection = additive ? Array.from(new Set([...base, ...selected])) : selected
 
     setSelectedElements(finalSelection)
     setAddMode(null)
@@ -320,6 +321,14 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
     let cancelled = false
 
     async function renderCurrentPage() {
+      if (renderTaskRef.current) {
+        try {
+          renderTaskRef.current.cancel()
+        } catch (err) {
+          console.warn("Failed to cancel previous render", err)
+        }
+        renderTaskRef.current = null
+      }
       const canvas = pdfCanvasRef.current
       const metrics = state.pageMetrics[currentPageId]
       if (!pdfDocRef.current) return
@@ -330,7 +339,15 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
       const pageIndex = metrics?.pageIndex ?? state.document.pageOrder.indexOf(currentPageId)
       if (pageIndex < 0) return
 
-      const page = await pdfDoc.getPage(pageIndex + 1)
+      let page
+      try {
+        page = await pdfDoc.getPage(pageIndex + 1)
+      } catch (error: any) {
+        if (error?.name === "RenderingCancelledException" || error?.message?.toLowerCase().includes("rendering cancelled")) {
+          return
+        }
+        throw error
+      }
 
       if (cancelled) return
 
@@ -346,13 +363,35 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
       context.clearRect(0, 0, canvas.width, canvas.height)
 
       const renderTask = page.render({ canvasContext: context, viewport })
-      await renderTask.promise
+      renderTaskRef.current = renderTask
+      try {
+        await renderTask.promise
+      } catch (error: any) {
+        if (error?.name !== "RenderingCancelledException" && !error?.message?.toLowerCase().includes("rendering cancelled")) {
+          throw error
+        }
+      } finally {
+        renderTaskRef.current = null
+      }
     }
 
-    renderCurrentPage()
+    renderCurrentPage().catch((error) => {
+      if (error?.name === "RenderingCancelledException" || error?.message?.toLowerCase().includes("rendering cancelled")) {
+        return
+      }
+      console.error("Failed to render current page", error)
+    })
 
     return () => {
       cancelled = true
+      if (renderTaskRef.current) {
+        try {
+          renderTaskRef.current.cancel()
+        } catch (err) {
+          console.warn("Failed to cancel render on cleanup", err)
+        }
+        renderTaskRef.current = null
+      }
     }
   }, [
     canvasSize.height,
