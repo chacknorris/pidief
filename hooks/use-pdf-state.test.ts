@@ -23,9 +23,14 @@ describe("use-pdf-state serialization", () => {
         pageOrder: ["page-1"],
       },
       pages: {
-        "page-1": { texts: [], highlights: [], arrows: [] },
+        "page-1": { texts: [], highlights: [], arrows: [], footer: { number: "", detail: "" } },
       },
-      pagination: { enabled: false, position: "bottom-center", startAt: 1, backgroundBox: false },
+      pagination: {
+        enabled: false,
+        position: "bottom-center",
+        startAt: 1,
+        backgroundBox: false,
+      },
       language: "en",
       coordinateSpace: "pdf",
       originalPdfBytes: arrayBuffer,

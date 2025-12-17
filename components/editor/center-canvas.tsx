@@ -527,6 +527,10 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
     )
   }
 
+  const manualPaginationText = state.pagination.enabled
+    ? ""
+    : [currentPage.footer?.number, currentPage.footer?.detail].filter((value) => value?.trim()).join(" - ")
+
   return (
     <div className="flex flex-1 flex-col bg-muted/30">
       {/* Toolbar */}
@@ -751,7 +755,7 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
             ))}
 
             {/* Page Numbers */}
-            {state.pagination.enabled && (
+            {(state.pagination.enabled || manualPaginationText) && (
               <div
                 className="absolute text-sm"
                 style={{
@@ -774,7 +778,9 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
                   }),
                 }}
               >
-                {currentPageIndex + state.pagination.startAt}
+                {state.pagination.enabled
+                  ? currentPageIndex + state.pagination.startAt
+                  : manualPaginationText}
               </div>
             )}
             {selectionBox.active && (

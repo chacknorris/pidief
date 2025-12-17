@@ -50,6 +50,8 @@ type Copy = {
       background: string
       position: string
       startAt: string
+      manualNumber: string
+      manualDetail: string
       bottomCenter: string
       bottomRight: string
       topRight: string
@@ -108,6 +110,8 @@ const copy: Record<Lang, Copy> = {
         background: "Background Box",
         position: "Position",
         startAt: "Start At",
+        manualNumber: "Number",
+        manualDetail: "Detail",
         bottomCenter: "Bottom Center",
         bottomRight: "Bottom Right",
         topRight: "Top Right",
@@ -164,6 +168,8 @@ const copy: Record<Lang, Copy> = {
         background: "Caja de fondo",
         position: "Posición",
         startAt: "Comienza en",
+        manualNumber: "Número",
+        manualDetail: "Detalle",
         bottomCenter: "Abajo centro",
         bottomRight: "Abajo derecha",
         topRight: "Arriba derecha",

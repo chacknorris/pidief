@@ -40,10 +40,15 @@ describe("exportFinalPDF", () => {
         pageOrder: ["page-b", "page-a"], // reverse order
       },
       pages: {
-        "page-a": { texts: [], highlights: [], arrows: [] },
-        "page-b": { texts: [], highlights: [], arrows: [] },
+        "page-a": { texts: [], highlights: [], arrows: [], footer: { number: "", detail: "" } },
+        "page-b": { texts: [], highlights: [], arrows: [], footer: { number: "", detail: "" } },
       },
-      pagination: { enabled: false, position: "bottom-center", startAt: 1, backgroundBox: false },
+      pagination: {
+        enabled: false,
+        position: "bottom-center",
+        startAt: 1,
+        backgroundBox: false,
+      },
       language: "en",
       coordinateSpace: "pdf",
       originalPdfBytes: toArrayBuffer(sourceBytes),
@@ -87,10 +92,15 @@ describe("exportFinalPDF", () => {
         pageOrder: ["page-a", "page-b"],
       },
       pages: {
-        "page-a": { texts: [], highlights: [], arrows: [] },
-        "page-b": { texts: [], highlights: [], arrows: [] },
+        "page-a": { texts: [], highlights: [], arrows: [], footer: { number: "", detail: "" } },
+        "page-b": { texts: [], highlights: [], arrows: [], footer: { number: "", detail: "" } },
       },
-      pagination: { enabled: false, position: "bottom-center", startAt: 1, backgroundBox: false },
+      pagination: {
+        enabled: false,
+        position: "bottom-center",
+        startAt: 1,
+        backgroundBox: false,
+      },
       language: "en",
       coordinateSpace: "pdf",
       originalPdfBytes: toArrayBuffer(bytesA),

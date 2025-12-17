@@ -78,6 +78,10 @@ export interface PageData {
   texts: TextElement[]
   highlights: HighlightElement[]
   arrows: ArrowElement[]
+  footer: {
+    number: string
+    detail: string
+  }
 }
 
 export interface DocumentState {
@@ -129,6 +133,7 @@ export interface PDFState {
   deletePage: (pageId: string) => void
   reorderPages: (draggedId: string, targetId: string) => void
   updatePagination: (updates: Partial<DocumentState["pagination"]>) => void
+  updatePageFooter: (pageId: string, updates: Partial<PageData["footer"]>) => void
   updateLanguage: (lang: DocumentState["language"]) => void
   undo: () => void
 }
@@ -181,9 +186,19 @@ export function deserializeDocumentState(
     const coordinateSpace: DocumentState["coordinateSpace"] =
       loadedState.coordinateSpace === "pdf" ? "pdf" : "legacy-612"
 
+    const legacyManualNumber =
+      typeof loadedState.pagination?.manualNumber === "string" ? loadedState.pagination.manualNumber : ""
+    const legacyManualDetail =
+      typeof loadedState.pagination?.manualDetail === "string" ? loadedState.pagination.manualDetail : ""
+
     const normalizedPages: Record<string, PageData> = {}
     if (loadedState.pages && typeof loadedState.pages === "object") {
       Object.entries(loadedState.pages).forEach(([id, page]) => {
+        const footerSource = page.footer && typeof page.footer === "object" ? page.footer : {}
+        const footer = {
+          number: typeof footerSource.number === "string" ? footerSource.number : legacyManualNumber,
+          detail: typeof footerSource.detail === "string" ? footerSource.detail : legacyManualDetail,
+        }
         normalizedPages[id] = {
           texts: page.texts || [],
           highlights: (page.highlights || []).map((highlight: any) => ({
@@ -199,6 +214,7 @@ export function deserializeDocumentState(
             ...ar,
             angle: typeof ar.angle === "number" ? ar.angle : 0,
           })),
+          footer,
         }
       })
     }
@@ -235,6 +251,7 @@ export function deserializeDocumentState(
         thickness: arrow.thickness * scale,
         angle: typeof arrow.angle === "number" ? arrow.angle : 0,
       })),
+      footer: page.footer,
     })
 
     const migratedPages: Record<string, PageData> = {}
@@ -250,12 +267,16 @@ export function deserializeDocumentState(
       })
     }
 
+    const restoredPagination = {
+      backgroundBox: false,
+      ...loadedState.pagination,
+    }
+
     const restoredState: DocumentState = {
       ...loadedState,
       pages: migratedPages,
       pagination: {
-        backgroundBox: false,
-        ...loadedState.pagination,
+        ...restoredPagination,
       },
       language: loadedState.language === "es" ? "es" : "en",
       coordinateSpace: canMigrateLegacy ? "pdf" : coordinateSpace,
@@ -278,6 +299,7 @@ function cloneDocumentState(state: DocumentState): DocumentState {
       texts: page.texts.map((t) => ({ ...t })),
       highlights: page.highlights.map((h) => ({ ...h })),
       arrows: page.arrows.map((a) => ({ ...a })),
+      footer: { ...page.footer },
     }
   })
 
@@ -355,12 +377,16 @@ export function usePDFState(): PDFState {
         const viewport = page.getViewport({ scale: 1.0 })
 
         const pageId = `page-${Date.now()}-${i}`
-      pageOrder.push(pageId)
-      pages[pageId] = {
-        texts: [],
-        highlights: [],
-        arrows: [],
-      }
+        pageOrder.push(pageId)
+        pages[pageId] = {
+          texts: [],
+          highlights: [],
+          arrows: [],
+          footer: {
+            number: "",
+            detail: "",
+          },
+        }
         pageMetrics[pageId] = {
           width: viewport.width,
           height: viewport.height,
@@ -546,7 +572,7 @@ export function usePDFState(): PDFState {
 
       setState((prev) => {
         pushHistory(prev)
-        const page = prev.pages[currentPageId] ?? { texts: [], highlights: [], arrows: [] }
+        const page = prev.pages[currentPageId] ?? { texts: [], highlights: [], arrows: [], footer: { number: "", detail: "" } }
         return {
           ...prev,
           pages: {
@@ -555,6 +581,7 @@ export function usePDFState(): PDFState {
               texts: page.texts.map((el) => (updates[el.id] ? { ...el, ...updates[el.id] } : el)),
               highlights: page.highlights.map((el) => (updates[el.id] ? { ...el, ...updates[el.id] } : el)),
               arrows: page.arrows.map((el) => (updates[el.id] ? { ...el, ...updates[el.id] } : el)),
+              footer: page.footer,
             },
           },
         }
@@ -577,7 +604,7 @@ export function usePDFState(): PDFState {
 
       setState((prev) => {
         pushHistory(prev)
-        const page = prev.pages[currentPageId] ?? { texts: [], highlights: [], arrows: [] }
+        const page = prev.pages[currentPageId] ?? { texts: [], highlights: [], arrows: [], footer: { number: "", detail: "" } }
         return {
           ...prev,
           pages: {
@@ -586,6 +613,7 @@ export function usePDFState(): PDFState {
               texts: page.texts.filter((el) => el.id !== id),
               highlights: page.highlights.filter((el) => el.id !== id),
               arrows: page.arrows.filter((el) => el.id !== id),
+              footer: page.footer,
             },
           },
         }
@@ -601,7 +629,7 @@ export function usePDFState(): PDFState {
 
       setState((prev) => {
         pushHistory(prev)
-        const page = prev.pages[currentPageId] ?? { texts: [], highlights: [], arrows: [] }
+        const page = prev.pages[currentPageId] ?? { texts: [], highlights: [], arrows: [], footer: { number: "", detail: "" } }
         return {
           ...prev,
           pages: {
@@ -610,6 +638,7 @@ export function usePDFState(): PDFState {
               texts: page.texts.filter((el) => !ids.includes(el.id)),
               highlights: page.highlights.filter((el) => !ids.includes(el.id)),
               arrows: page.arrows.filter((el) => !ids.includes(el.id)),
+              footer: page.footer,
             },
           },
         }
@@ -721,6 +750,34 @@ export function usePDFState(): PDFState {
     })
   }, [pushHistory])
 
+  const updatePageFooter = useCallback(
+    (pageId: string, updates: Partial<PageData["footer"]>) => {
+      if (!pageId) return
+
+      setState((prev) => {
+        const page = prev.pages[pageId]
+        if (!page) return prev
+        pushHistory(prev)
+        return {
+          ...prev,
+          pages: {
+            ...prev.pages,
+            [pageId]: {
+              ...page,
+              footer: {
+                number: "",
+                detail: "",
+                ...page.footer,
+                ...updates,
+              },
+            },
+          },
+        }
+      })
+    },
+    [pushHistory],
+  )
+
   const exportPDF = useCallback(async () => {
     if (!state.originalPdfSources.length || !state.document) {
       alert("No PDF loaded to export")
@@ -789,6 +846,7 @@ export function usePDFState(): PDFState {
     deletePage,
     reorderPages,
     updatePagination,
+    updatePageFooter,
     updateLanguage,
     undo,
   }

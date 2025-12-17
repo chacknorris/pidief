@@ -60,11 +60,15 @@ export async function exportFinalPDF(
         documentState.coordinateSpace !== "legacy-612" && Array.isArray(metrics?.transform) && metrics?.transform?.length === 6
 
       // ===== PAGE NUMBERS =====
-      if (pagination.enabled) {
+      const manualPaginationText = pagination.enabled
+        ? ""
+        : [pageData.footer?.number, pageData.footer?.detail].filter((value) => value?.trim()).join(" - ")
+
+      if (pagination.enabled || manualPaginationText) {
         const pageNumber = i + pagination.startAt
         const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
         const fontSize = 12
-        const text = String(pageNumber)
+        const text = pagination.enabled ? String(pageNumber) : manualPaginationText
         const textWidth = font.widthOfTextAtSize(text, fontSize)
 
         let x = 0

@@ -28,6 +28,7 @@ export function RightPanel({ pdfState }: RightPanelProps) {
     addHighlight,
     addArrow,
     updatePagination,
+    updatePageFooter,
   } = pdfState
 
   const currentPage = currentPageId ? state.pages[currentPageId] : null
@@ -38,6 +39,7 @@ export function RightPanel({ pdfState }: RightPanelProps) {
   const primaryElementId = selectedElements[selectedElements.length - 1] || null
   const element = allElements.find((el) => el.id === primaryElementId)
   const multiSelected = selectedElements.length > 1
+  const footer = currentPage?.footer ?? { number: "", detail: "" }
 
   return (
     <div className="flex w-80 flex-col border-l border-border bg-sidebar">
@@ -363,45 +365,73 @@ export function RightPanel({ pdfState }: RightPanelProps) {
               onCheckedChange={(checked) => updatePagination({ enabled: checked })}
             />
           </div>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="paginationBackground" className="text-xs">
+              {copy.rightPanel.pagination.background}
+            </Label>
+            <Switch
+              id="paginationBackground"
+              checked={state.pagination.backgroundBox}
+              onCheckedChange={(checked) => updatePagination({ backgroundBox: checked })}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="position" className="text-xs">
+              {copy.rightPanel.pagination.position}
+            </Label>
+            <Select
+              value={state.pagination.position}
+              onValueChange={(value: any) => updatePagination({ position: value })}
+            >
+              <SelectTrigger id="position" className="h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="bottom-center">{copy.rightPanel.pagination.bottomCenter}</SelectItem>
+                <SelectItem value="bottom-right">{copy.rightPanel.pagination.bottomRight}</SelectItem>
+                <SelectItem value="top-right">{copy.rightPanel.pagination.topRight}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           {state.pagination.enabled && (
+            <div className="space-y-2">
+              <Label htmlFor="startAt" className="text-xs">
+                {copy.rightPanel.pagination.startAt}
+              </Label>
+              <Input
+                id="startAt"
+                type="number"
+                value={state.pagination.startAt}
+                onChange={(e) => updatePagination({ startAt: Number.parseInt(e.target.value) })}
+                className="h-8"
+              />
+            </div>
+          )}
+          {!state.pagination.enabled && (
             <>
-              <div className="flex items-center justify-between">
-                <Label htmlFor="paginationBackground" className="text-xs">
-                  {copy.rightPanel.pagination.background}
+              <div className="space-y-2">
+                <Label htmlFor="manualNumber" className="text-xs">
+                  {copy.rightPanel.pagination.manualNumber}
                 </Label>
-                <Switch
-                  id="paginationBackground"
-                  checked={state.pagination.backgroundBox}
-                  onCheckedChange={(checked) => updatePagination({ backgroundBox: checked })}
+                <Input
+                  id="manualNumber"
+                  value={footer.number}
+                  onChange={(e) =>
+                    currentPageId ? updatePageFooter(currentPageId, { number: e.target.value }) : undefined
+                  }
+                  className="h-8"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="position" className="text-xs">
-                  {copy.rightPanel.pagination.position}
-                </Label>
-                <Select
-                  value={state.pagination.position}
-                  onValueChange={(value: any) => updatePagination({ position: value })}
-                >
-                  <SelectTrigger id="position" className="h-8">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="bottom-center">{copy.rightPanel.pagination.bottomCenter}</SelectItem>
-                    <SelectItem value="bottom-right">{copy.rightPanel.pagination.bottomRight}</SelectItem>
-                    <SelectItem value="top-right">{copy.rightPanel.pagination.topRight}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="startAt" className="text-xs">
-                  {copy.rightPanel.pagination.startAt}
+                <Label htmlFor="manualDetail" className="text-xs">
+                  {copy.rightPanel.pagination.manualDetail}
                 </Label>
                 <Input
-                  id="startAt"
-                  type="number"
-                  value={state.pagination.startAt}
-                  onChange={(e) => updatePagination({ startAt: Number.parseInt(e.target.value) })}
+                  id="manualDetail"
+                  value={footer.detail}
+                  onChange={(e) =>
+                    currentPageId ? updatePageFooter(currentPageId, { detail: e.target.value }) : undefined
+                  }
                   className="h-8"
                 />
               </div>
