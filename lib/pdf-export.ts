@@ -49,7 +49,15 @@ export async function exportFinalPDF(
       pdfDoc.addPage(page)
 
       const { width: pageWidth, height: pageHeight } = page.getSize()
-      const { width: canvasWidth, height: canvasHeight } = getCanvasSize(metrics)
+      const canvasSize = getCanvasSize(
+        metrics,
+        { width: pageWidth, height: pageHeight },
+        documentState.coordinateSpace === "legacy-612",
+      )
+      const canvasWidth = canvasSize.width
+      const canvasHeight = canvasSize.height
+      const useTransform =
+        documentState.coordinateSpace !== "legacy-612" && Array.isArray(metrics?.transform) && metrics?.transform?.length === 6
 
       // ===== PAGE NUMBERS =====
       if (pagination.enabled) {
@@ -105,43 +113,42 @@ export async function exportFinalPDF(
       // ===== TEXT =====
       if (pageData.texts && pageData.texts.length > 0) {
         for (const textElement of pageData.texts) {
-          const normalizedX = textElement.x / canvasWidth
-          const normalizedY = textElement.y / canvasHeight
-          const normalizedWidth = textElement.width / canvasWidth
-          const normalizedHeight = textElement.height / canvasHeight
-
-          const absoluteX = normalizedX * pageWidth
-          const absoluteY = normalizedY * pageHeight
-          const absoluteHeight = normalizedHeight * pageHeight
-
-          const pdfY = canvasToPdfY(absoluteY, absoluteHeight, pageHeight)
+          const mapped = mapElementRect(
+            textElement,
+            { width: canvasWidth, height: canvasHeight },
+            { width: pageWidth, height: pageHeight },
+            useTransform ? metrics?.transform : undefined,
+          )
 
           const font = textElement.bold
             ? await pdfDoc.embedFont(StandardFonts.HelveticaBold).catch(() => pdfDoc.embedFont(StandardFonts.Helvetica))
             : await pdfDoc.embedFont(StandardFonts.Helvetica)
 
-          const scaledFontSize = (textElement.fontSize * pageHeight) / canvasHeight
+          const scaledFontSize = textElement.fontSize * mapped.scale
           const color = hexToRgb(textElement.color)
           const textWidth = font.widthOfTextAtSize(textElement.content, scaledFontSize)
-          const absoluteWidth = normalizedWidth * pageWidth
+          const padding = 4 * mapped.scale
+          const absoluteWidth = Math.max(0, mapped.width - padding * 2)
 
-          let finalX = absoluteX
+          let finalX = mapped.x + padding
           switch (textElement.textAlign) {
             case "center":
-              finalX = absoluteX + (absoluteWidth - textWidth) / 2
+              finalX = mapped.x + padding + (absoluteWidth - textWidth) / 2
               break
             case "right":
-              finalX = absoluteX + absoluteWidth - textWidth
+              finalX = mapped.x + padding + absoluteWidth - textWidth
               break
             case "justify":
             case "left":
             default:
               break
           }
+          const topY = mapped.y + mapped.height
+          const baselineY = topY - padding - scaledFontSize
 
           page.drawText(textElement.content, {
             x: finalX,
-            y: pdfY,
+            y: baselineY,
             size: scaledFontSize,
             font,
             color: rgb(color.r, color.g, color.b),
@@ -152,24 +159,19 @@ export async function exportFinalPDF(
       // ===== HIGHLIGHTS =====
       if (pageData.highlights && pageData.highlights.length > 0) {
         for (const highlight of pageData.highlights) {
-          const normalizedX = highlight.x / canvasWidth
-          const normalizedY = highlight.y / canvasHeight
-          const normalizedWidth = highlight.width / canvasWidth
-          const normalizedHeight = highlight.height / canvasHeight
-
-          const absoluteX = normalizedX * pageWidth
-          const absoluteY = normalizedY * pageHeight
-          const absoluteWidth = normalizedWidth * pageWidth
-          const absoluteHeight = normalizedHeight * pageHeight
-
-          const pdfY = canvasToPdfY(absoluteY, absoluteHeight, pageHeight)
+          const mapped = mapElementRect(
+            highlight,
+            { width: canvasWidth, height: canvasHeight },
+            { width: pageWidth, height: pageHeight },
+            useTransform ? metrics?.transform : undefined,
+          )
           const color = hexToRgb(highlight.color)
 
           page.drawRectangle({
-            x: absoluteX,
-            y: pdfY,
-            width: absoluteWidth,
-            height: absoluteHeight,
+            x: mapped.x,
+            y: mapped.y,
+            width: mapped.width,
+            height: mapped.height,
             color: rgb(color.r, color.g, color.b),
             opacity: highlight.opacity,
           })
@@ -179,26 +181,21 @@ export async function exportFinalPDF(
       // ===== ARROWS =====
       if (pageData.arrows && pageData.arrows.length > 0) {
         for (const arrow of pageData.arrows) {
-          const normalizedX = arrow.x / canvasWidth
-          const normalizedY = arrow.y / canvasHeight
-          const normalizedWidth = arrow.width / canvasWidth
-          const normalizedHeight = arrow.height / canvasHeight
-
-          const absoluteX = normalizedX * pageWidth
-          const absoluteY = normalizedY * pageHeight
-          const absoluteWidth = normalizedWidth * pageWidth
-          const absoluteHeight = normalizedHeight * pageHeight
-
-          const pdfY = canvasToPdfY(absoluteY, absoluteHeight, pageHeight)
+          const mapped = mapElementRect(
+            arrow,
+            { width: canvasWidth, height: canvasHeight },
+            { width: pageWidth, height: pageHeight },
+            useTransform ? metrics?.transform : undefined,
+          )
           const color = hexToRgb(arrow.color)
 
-          const stroke = Math.max(1, (arrow.thickness * pageHeight) / canvasHeight)
+          const stroke = Math.max(1, arrow.thickness * mapped.scale)
           const headSize = Math.min(
-            absoluteWidth / 2,
-            Math.max(stroke * 3, absoluteHeight * 0.35),
+            mapped.width / 2,
+            Math.max(stroke * 3, mapped.height * 0.35),
           )
-          const mid = absoluteHeight / 2
-          const shaftEnd = Math.max(headSize, absoluteWidth - headSize)
+          const mid = mapped.height / 2
+          const shaftEnd = Math.max(headSize, mapped.width - headSize)
 
           const points = [
             { x: 0, y: mid },
@@ -218,7 +215,7 @@ export async function exportFinalPDF(
             const dy = py - mid
             const rx = dx * cos - dy * sin
             const ry = dx * sin + dy * cos
-            return { x: rx + absoluteX, y: ry + (pdfY + mid) }
+            return { x: rx + mapped.x, y: ry + (mapped.y + mid) }
           }
 
           const [p0, p1, , p2, p3, p4] = points.map((p) => rotate(p.x, p.y))
@@ -300,19 +297,100 @@ export function canvasToPdfY(canvasY: number, elementHeight: number, pageHeight:
   return pageHeight - canvasY - elementHeight
 }
 
+function mapElementRect(
+  element: { x: number; y: number; width: number; height: number },
+  canvasSize: { width: number; height: number },
+  pageSize: { width: number; height: number },
+  transform?: number[],
+): { x: number; y: number; width: number; height: number; scale: number } {
+  if (transform && transform.length === 6) {
+    const inverse = invertTransform(transform)
+    const topLeft = applyTransform(inverse, element.x, element.y)
+    const bottomRight = applyTransform(inverse, element.x + element.width, element.y + element.height)
+
+    const x = Math.min(topLeft.x, bottomRight.x)
+    const y = Math.min(topLeft.y, bottomRight.y)
+    const width = Math.abs(bottomRight.x - topLeft.x)
+    const height = Math.abs(bottomRight.y - topLeft.y)
+
+    const scaleX = element.width ? width / element.width : 1
+    const scaleY = element.height ? height / element.height : 1
+    const scale =
+      Number.isFinite(scaleX) && Number.isFinite(scaleY)
+        ? (scaleX + scaleY) / 2
+        : Number.isFinite(scaleX)
+          ? scaleX
+          : scaleY
+
+    return { x, y, width, height, scale: Number.isFinite(scale) && scale > 0 ? scale : 1 }
+  }
+
+  const normalizedX = element.x / canvasSize.width
+  const normalizedY = element.y / canvasSize.height
+  const normalizedWidth = element.width / canvasSize.width
+  const normalizedHeight = element.height / canvasSize.height
+
+  const absoluteX = normalizedX * pageSize.width
+  const absoluteY = normalizedY * pageSize.height
+  const absoluteWidth = normalizedWidth * pageSize.width
+  const absoluteHeight = normalizedHeight * pageSize.height
+
+  return {
+    x: absoluteX,
+    y: canvasToPdfY(absoluteY, absoluteHeight, pageSize.height),
+    width: absoluteWidth,
+    height: absoluteHeight,
+    scale: pageSize.height / canvasSize.height,
+  }
+}
+
+function applyTransform(matrix: number[], x: number, y: number): { x: number; y: number } {
+  return {
+    x: matrix[0] * x + matrix[2] * y + matrix[4],
+    y: matrix[1] * x + matrix[3] * y + matrix[5],
+  }
+}
+
+function invertTransform(matrix: number[]): number[] {
+  const [a, b, c, d, e, f] = matrix
+  const det = a * d - b * c
+  if (!det) {
+    return [1, 0, 0, 1, 0, 0]
+  }
+  const invDet = 1 / det
+  return [
+    d * invDet,
+    -b * invDet,
+    -c * invDet,
+    a * invDet,
+    (c * f - d * e) * invDet,
+    (b * e - a * f) * invDet,
+  ]
+}
+
 function getCanvasSize(
-  metrics?: { width: number; height: number },
+  metrics: { width: number; height: number } | undefined,
+  fallback: { width: number; height: number },
+  legacy: boolean,
 ): { width: number; height: number } {
   const DEFAULT_WIDTH = 612
   const DEFAULT_HEIGHT = 792
 
-  if (metrics?.width && metrics?.height) {
-    const width = DEFAULT_WIDTH
-    const height = (metrics.height / metrics.width) * width
-    return { width, height }
+  if (legacy) {
+    if (metrics?.width && metrics?.height) {
+      const width = DEFAULT_WIDTH
+      const height = (metrics.height / metrics.width) * width
+      return { width, height }
+    }
+
+    return { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT }
   }
 
-  return { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT }
+  if (metrics?.width && metrics?.height) {
+    return { width: metrics.width, height: metrics.height }
+  }
+
+  return fallback.width && fallback.height ? fallback : { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT }
 }
 
 /**

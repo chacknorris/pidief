@@ -44,6 +44,8 @@ describe("exportFinalPDF", () => {
         "page-b": { texts: [], highlights: [], arrows: [] },
       },
       pagination: { enabled: false, position: "bottom-center", startAt: 1, backgroundBox: false },
+      language: "en",
+      coordinateSpace: "pdf",
       originalPdfBytes: toArrayBuffer(sourceBytes),
       originalPdfSources: [toArrayBuffer(sourceBytes)],
       pageMetrics: {
@@ -89,6 +91,8 @@ describe("exportFinalPDF", () => {
         "page-b": { texts: [], highlights: [], arrows: [] },
       },
       pagination: { enabled: false, position: "bottom-center", startAt: 1, backgroundBox: false },
+      language: "en",
+      coordinateSpace: "pdf",
       originalPdfBytes: toArrayBuffer(bytesA),
       originalPdfSources: [toArrayBuffer(bytesA), toArrayBuffer(bytesB)],
       pageMetrics: {

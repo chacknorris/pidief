@@ -129,11 +129,11 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
   }
 
   return (
-    <div className="flex w-64 flex-col border-r border-border bg-sidebar">
+    <div className="flex min-h-0 w-64 flex-col border-r border-border bg-sidebar">
       <div className="border-b border-border p-3">
         <h2 className="text-sm font-semibold text-sidebar-foreground">{copy.leftPanel.pages}</h2>
       </div>
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="space-y-2 p-3">
           {state.document.pageOrder.map((pageId, index) => (
             <div

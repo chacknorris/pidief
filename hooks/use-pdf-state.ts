@@ -88,11 +88,15 @@ export interface DocumentState {
     backgroundBox: boolean
   }
   language: "en" | "es"
+  coordinateSpace: "legacy-612" | "pdf"
   // Legacy single PDF reference (kept for backward compatibility, not serialized)
   originalPdfBytes: ArrayBuffer | null
   // Multiple PDF sources to allow merging/ordering across imports
   originalPdfSources: ArrayBuffer[]
-  pageMetrics: Record<string, { width: number; height: number; pageIndex: number; sourceIndex: number }>
+  pageMetrics: Record<
+    string,
+    { width: number; height: number; pageIndex: number; sourceIndex: number; transform?: number[] }
+  >
 }
 
 export interface PDFState {
@@ -133,6 +137,7 @@ const initialState: DocumentState = {
     backgroundBox: false,
   },
   language: "en",
+  coordinateSpace: "pdf",
   originalPdfBytes: null,
   originalPdfSources: [],
   pageMetrics: {},
@@ -167,6 +172,9 @@ export function deserializeDocumentState(
 
     const nextCurrentPageId = loadedState.document?.pageOrder?.[0] ?? null
 
+    const coordinateSpace: DocumentState["coordinateSpace"] =
+      loadedState.coordinateSpace === "pdf" ? "pdf" : "legacy-612"
+
     const normalizedPages: Record<string, PageData> = {}
     if (loadedState.pages && typeof loadedState.pages === "object") {
       Object.entries(loadedState.pages).forEach(([id, page]) => {
@@ -181,14 +189,61 @@ export function deserializeDocumentState(
       })
     }
 
+    const pageIds = Object.keys(normalizedPages)
+    const canMigrateLegacy =
+      coordinateSpace === "legacy-612" &&
+      pageIds.length > 0 &&
+      pageIds.every((id) => nextPageMetrics[id]?.width && nextPageMetrics[id]?.height)
+
+    const migratePage = (page: PageData, scale: number): PageData => ({
+      texts: page.texts.map((text) => ({
+        ...text,
+        x: text.x * scale,
+        y: text.y * scale,
+        width: text.width * scale,
+        height: text.height * scale,
+        fontSize: text.fontSize * scale,
+      })),
+      highlights: page.highlights.map((highlight) => ({
+        ...highlight,
+        x: highlight.x * scale,
+        y: highlight.y * scale,
+        width: highlight.width * scale,
+        height: highlight.height * scale,
+      })),
+      arrows: page.arrows.map((arrow) => ({
+        ...arrow,
+        x: arrow.x * scale,
+        y: arrow.y * scale,
+        width: arrow.width * scale,
+        height: arrow.height * scale,
+        thickness: arrow.thickness * scale,
+        angle: typeof arrow.angle === "number" ? arrow.angle : 0,
+      })),
+    })
+
+    const migratedPages: Record<string, PageData> = {}
+    if (canMigrateLegacy) {
+      pageIds.forEach((id) => {
+        const metrics = nextPageMetrics[id]
+        const scale = metrics.width / 612
+        migratedPages[id] = migratePage(normalizedPages[id], scale)
+      })
+    } else {
+      pageIds.forEach((id) => {
+        migratedPages[id] = normalizedPages[id]
+      })
+    }
+
     const restoredState: DocumentState = {
       ...loadedState,
-      pages: normalizedPages,
+      pages: migratedPages,
       pagination: {
         backgroundBox: false,
         ...loadedState.pagination,
       },
       language: loadedState.language === "es" ? "es" : "en",
+      coordinateSpace: canMigrateLegacy ? "pdf" : coordinateSpace,
       originalPdfBytes: decodedOriginalPdf,
       originalPdfSources: decodedSources,
       pageMetrics: nextPageMetrics,
@@ -218,6 +273,7 @@ function cloneDocumentState(state: DocumentState): DocumentState {
     pages,
     pagination: { ...state.pagination },
     language: state.language,
+    coordinateSpace: state.coordinateSpace,
     originalPdfBytes: state.originalPdfBytes,
     originalPdfSources: state.originalPdfSources,
     pageMetrics: { ...state.pageMetrics },
@@ -270,7 +326,10 @@ export function usePDFState(): PDFState {
       const pageCount = pdfDocument.numPages
       const pageOrder: string[] = []
       const pages: Record<string, PageData> = {}
-      const pageMetrics: Record<string, { width: number; height: number; pageIndex: number; sourceIndex: number }> = {}
+      const pageMetrics: Record<
+        string,
+        { width: number; height: number; pageIndex: number; sourceIndex: number; transform?: number[] }
+      > = {}
 
       // Calculate source index to keep track of which PDF each page belongs to
       const sourceIndex = state.originalPdfSources.length
@@ -292,6 +351,7 @@ export function usePDFState(): PDFState {
           height: viewport.height,
           pageIndex: i - 1, // zero-based index to reference the original PDF page
           sourceIndex,
+          transform: Array.from(viewport.transform || []),
         }
       }
 
@@ -315,6 +375,8 @@ export function usePDFState(): PDFState {
               },
           pages: mergedPages,
           pagination: prev.pagination,
+          language: prev.language,
+          coordinateSpace: prev.coordinateSpace ?? "pdf",
           // Keep legacy field for compatibility (first PDF only)
           originalPdfBytes: prev.originalPdfBytes ?? originalPdfBytes,
           originalPdfSources: [...prev.originalPdfSources, originalPdfBytes],

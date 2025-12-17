@@ -79,14 +79,22 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
     const DEFAULT_WIDTH = 612
     const DEFAULT_HEIGHT = 792
 
+    if (state.coordinateSpace === "legacy-612") {
+      if (currentPageMetrics?.width && currentPageMetrics?.height) {
+        const width = DEFAULT_WIDTH
+        const height = (currentPageMetrics.height / currentPageMetrics.width) * width
+        return { width, height }
+      }
+
+      return { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT }
+    }
+
     if (currentPageMetrics?.width && currentPageMetrics?.height) {
-      const width = DEFAULT_WIDTH
-      const height = (currentPageMetrics.height / currentPageMetrics.width) * width
-      return { width, height }
+      return { width: currentPageMetrics.width, height: currentPageMetrics.height }
     }
 
     return { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT }
-  }, [currentPageMetrics])
+  }, [currentPageMetrics, state.coordinateSpace])
 
   const handleCanvasMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault()
@@ -186,6 +194,8 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
         const y = (startClientY - rect.top) / zoom
         addTextElement(x, y)
         setAddMode(null)
+      } else if (!selectionBox.additive && !modifierActive) {
+        setSelectedElements([])
       }
       return
     }
