@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from "lucide-react"
 import type { PDFState } from "@/hooks/use-pdf-state"
 import { cn } from "@/lib/utils"
+import { getCopy } from "@/lib/i18n"
 
 interface CenterCanvasProps {
   pdfState: PDFState
@@ -30,6 +31,8 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
     deleteElements,
     undo,
   } = pdfState
+
+  const copy = getCopy(state.language)
 
   const [zoom, setZoom] = useState(1)
   const [pdfDocVersion, setPdfDocVersion] = useState(0)
@@ -447,8 +450,8 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
     return (
       <div className="flex flex-1 items-center justify-center bg-muted/30">
         <div className="text-center">
-          <p className="text-lg font-medium text-muted-foreground">No PDF loaded</p>
-          <p className="text-sm text-muted-foreground">Import a PDF to get started</p>
+          <p className="text-lg font-medium text-muted-foreground">{copy.canvas.noPdfTitle}</p>
+          <p className="text-sm text-muted-foreground">{copy.canvas.noPdfSubtitle}</p>
         </div>
       </div>
     )
@@ -463,7 +466,7 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <span className="text-sm text-muted-foreground">
-            Page {currentPageIndex + 1} of {state.document.pageOrder.length}
+            {copy.canvas.pageLabel(currentPageIndex + 1, state.document.pageOrder.length)}
           </span>
           <Button
             size="sm"

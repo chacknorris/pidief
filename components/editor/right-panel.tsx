@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator"
 import { Slider } from "@/components/ui/slider"
 import { Trash2, Type, Highlighter, AlignLeft, AlignCenter, AlignRight, AlignJustify, ArrowRight } from "lucide-react"
 import type { PDFState } from "@/hooks/use-pdf-state"
+import { getCopy } from "@/lib/i18n"
 
 interface RightPanelProps {
   pdfState: PDFState
@@ -30,6 +31,7 @@ export function RightPanel({ pdfState }: RightPanelProps) {
   } = pdfState
 
   const currentPage = currentPageId ? state.pages[currentPageId] : null
+  const copy = getCopy(state.language)
   const allElements = currentPage
     ? [...(currentPage.texts || []), ...(currentPage.highlights || []), ...(currentPage.arrows || [])]
     : []
@@ -40,13 +42,16 @@ export function RightPanel({ pdfState }: RightPanelProps) {
   return (
     <div className="flex w-80 flex-col border-l border-border bg-sidebar">
       <div className="border-b border-border p-3">
-        <h2 className="text-sm font-semibold text-sidebar-foreground">Properties</h2>
+        <h2 className="text-sm font-semibold text-sidebar-foreground">{copy.rightPanel.properties}</h2>
       </div>
 
       <div className="flex-1 space-y-6 overflow-auto p-4">
         {/* Add Elements */}
         <div className="space-y-3">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Add Element</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {copy.rightPanel.addElement}
+          </h3>
           <div className="grid grid-cols-3 gap-2">
             <Button
               size="sm"
@@ -55,7 +60,7 @@ export function RightPanel({ pdfState }: RightPanelProps) {
               onClick={() => setAddMode(addMode === "text" ? null : "text")}
             >
               <Type className="h-4 w-4" />
-              <span className="text-xs">{addMode === "text" ? "Click to place" : "Text"}</span>
+              <span className="text-xs">{copy.rightPanel.text(addMode === "text")}</span>
             </Button>
             <Button
               size="sm"
@@ -64,7 +69,7 @@ export function RightPanel({ pdfState }: RightPanelProps) {
               onClick={() => addHighlight()}
             >
               <Highlighter className="h-4 w-4" />
-              <span className="text-xs">Highlight</span>
+              <span className="text-xs">{copy.rightPanel.highlight}</span>
             </Button>
             <Button
               size="sm"
@@ -73,7 +78,7 @@ export function RightPanel({ pdfState }: RightPanelProps) {
               onClick={() => addArrow()}
             >
               <ArrowRight className="h-4 w-4" />
-              <span className="text-xs">Arrow</span>
+              <span className="text-xs">{copy.rightPanel.arrow}</span>
             </Button>
           </div>
         </div>
@@ -86,11 +91,11 @@ export function RightPanel({ pdfState }: RightPanelProps) {
             <div className="flex items-center justify-between">
               <div className="space-y-1">
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {multiSelected ? `Selected (${selectedElements.length})` : "Selected Element"}
+                  {copy.rightPanel.selected(selectedElements.length)}
                 </h3>
                 {multiSelected && (
                   <p className="text-xs text-muted-foreground">
-                    Shift o Cmd/Ctrl + click para sumar o quitar elementos y moverlos en bloque.
+                    {copy.rightPanel.multiHint}
                   </p>
                 )}
               </div>
@@ -116,7 +121,7 @@ export function RightPanel({ pdfState }: RightPanelProps) {
               <>
                 <div className="space-y-2">
                   <Label htmlFor="fontSize" className="text-xs">
-                    Font Size
+                    {copy.rightPanel.fontSize}
                   </Label>
                   <Input
                     id="fontSize"
@@ -128,7 +133,7 @@ export function RightPanel({ pdfState }: RightPanelProps) {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="color" className="text-xs">
-                    Color
+                    {copy.rightPanel.color}
                   </Label>
                   <Input
                     id="color"
@@ -140,7 +145,7 @@ export function RightPanel({ pdfState }: RightPanelProps) {
                 </div>
                 <div className="flex items-center justify-between">
                   <Label htmlFor="bold" className="text-xs">
-                    Bold
+                    {copy.rightPanel.bold}
                   </Label>
                   <Switch
                     id="bold"
@@ -150,6 +155,7 @@ export function RightPanel({ pdfState }: RightPanelProps) {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs">Text Alignment</Label>
+                  <Label className="text-xs">{copy.rightPanel.textAlign}</Label>
                   <div className="grid grid-cols-4 gap-1">
                     <Button
                       size="sm"
@@ -193,7 +199,7 @@ export function RightPanel({ pdfState }: RightPanelProps) {
               <>
                 <div className="space-y-2">
                   <Label htmlFor="highlightColor" className="text-xs">
-                    Color
+                    {copy.rightPanel.color}
                   </Label>
                   <Input
                     id="highlightColor"
@@ -205,7 +211,7 @@ export function RightPanel({ pdfState }: RightPanelProps) {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="opacity" className="text-xs">
-                    Opacity: {Math.round(element.opacity * 100)}%
+                    {copy.rightPanel.highlightOpacity(element.opacity)}
                   </Label>
                   <Slider
                     id="opacity"
@@ -218,7 +224,7 @@ export function RightPanel({ pdfState }: RightPanelProps) {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="width" className="text-xs">
-                    Width
+                    {copy.rightPanel.width}
                   </Label>
                   <Input
                     id="width"
@@ -230,7 +236,7 @@ export function RightPanel({ pdfState }: RightPanelProps) {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="height" className="text-xs">
-                    Height
+                    {copy.rightPanel.height}
                   </Label>
                   <Input
                     id="height"
@@ -248,7 +254,7 @@ export function RightPanel({ pdfState }: RightPanelProps) {
               <>
                 <div className="space-y-2">
                   <Label htmlFor="arrowColor" className="text-xs">
-                    Color
+                    {copy.rightPanel.color}
                   </Label>
                   <Input
                     id="arrowColor"
@@ -259,7 +265,7 @@ export function RightPanel({ pdfState }: RightPanelProps) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs">Thickness</Label>
+                  <Label className="text-xs">{copy.rightPanel.thickness}</Label>
                   <div className="grid grid-cols-5 gap-1">
                     {[1, 2, 3, 4, 5].map((t) => (
                       <Button
@@ -284,9 +290,12 @@ export function RightPanel({ pdfState }: RightPanelProps) {
         {/* Pagination Settings */}
         <div className="space-y-4">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Page Numbering</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {copy.rightPanel.pagination.title}
+          </h3>
           <div className="flex items-center justify-between">
             <Label htmlFor="paginationEnabled" className="text-xs">
-              Enable Numbering
+              {copy.rightPanel.pagination.enable}
             </Label>
             <Switch
               id="paginationEnabled"
@@ -298,7 +307,7 @@ export function RightPanel({ pdfState }: RightPanelProps) {
             <>
               <div className="flex items-center justify-between">
                 <Label htmlFor="paginationBackground" className="text-xs">
-                  Background Box
+                  {copy.rightPanel.pagination.background}
                 </Label>
                 <Switch
                   id="paginationBackground"
@@ -308,7 +317,7 @@ export function RightPanel({ pdfState }: RightPanelProps) {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="position" className="text-xs">
-                  Position
+                  {copy.rightPanel.pagination.position}
                 </Label>
                 <Select
                   value={state.pagination.position}
@@ -318,15 +327,15 @@ export function RightPanel({ pdfState }: RightPanelProps) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="bottom-center">Bottom Center</SelectItem>
-                    <SelectItem value="bottom-right">Bottom Right</SelectItem>
-                    <SelectItem value="top-right">Top Right</SelectItem>
+                    <SelectItem value="bottom-center">{copy.rightPanel.pagination.bottomCenter}</SelectItem>
+                    <SelectItem value="bottom-right">{copy.rightPanel.pagination.bottomRight}</SelectItem>
+                    <SelectItem value="top-right">{copy.rightPanel.pagination.topRight}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="startAt" className="text-xs">
-                  Start At
+                  {copy.rightPanel.pagination.startAt}
                 </Label>
                 <Input
                   id="startAt"
