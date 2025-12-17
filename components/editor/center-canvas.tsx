@@ -169,9 +169,10 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
     setSelectionBox((prev) => ({ ...prev, currentClientX: e.clientX, currentClientY: e.clientY }))
   }
 
-  const handleSelectionEnd = () => {
+  const handleSelectionEnd = (e?: MouseEvent) => {
     if (!selectionBox.active) return
     const { startClientX, startClientY, currentClientX, currentClientY } = selectionBox
+    const modifierActive = e ? e.shiftKey || e.metaKey || e.ctrlKey : false
     const dx = Math.abs(currentClientX - startClientX)
     const dy = Math.abs(currentClientY - startClientY)
     const clickTolerance = 5
@@ -206,9 +207,8 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
       })
     }
 
-    const finalSelection = selectionBox.additive
-      ? Array.from(new Set([...selectedElements, ...selected]))
-      : selected
+    const additive = selectionBox.additive || modifierActive
+    const finalSelection = additive ? Array.from(new Set([...selectedElements, ...selected])) : selected
 
     setSelectedElements(finalSelection)
     setAddMode(null)
@@ -400,10 +400,11 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
   React.useEffect(() => {
     if (selectionBox.active) {
       window.addEventListener("mousemove", handleSelectionMove)
-      window.addEventListener("mouseup", handleSelectionEnd)
+      const onMouseUp = (e: MouseEvent) => handleSelectionEnd(e)
+      window.addEventListener("mouseup", onMouseUp)
       return () => {
         window.removeEventListener("mousemove", handleSelectionMove)
-        window.removeEventListener("mouseup", handleSelectionEnd)
+        window.removeEventListener("mouseup", onMouseUp)
       }
     }
   }, [selectionBox.active, zoom])

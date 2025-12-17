@@ -153,7 +153,6 @@ export function RightPanel({ pdfState }: RightPanelProps) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs">Text Alignment</Label>
                   <Label className="text-xs">{copy.rightPanel.textAlign}</Label>
                   <div className="grid grid-cols-4 gap-1">
                     <Button
@@ -288,7 +287,6 @@ export function RightPanel({ pdfState }: RightPanelProps) {
 
         {/* Pagination Settings */}
         <div className="space-y-4">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Page Numbering</h3>
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {copy.rightPanel.pagination.title}
           </h3>
