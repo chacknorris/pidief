@@ -50,7 +50,9 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
   const copy = getCopy(state.language)
 
   const [zoom, setZoom] = useState(1)
+  const prevZoomRef = useRef(1)
   const [pdfDocVersion, setPdfDocVersion] = useState(0)
+  const scrollRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLDivElement>(null)
   const pdfCanvasRef = useRef<HTMLCanvasElement>(null)
   const pdfDocRef = useRef<Map<number, any> | null>(new Map())
@@ -73,6 +75,9 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
     currentClientY: number
     additive: boolean
   }>({ active: false, startClientX: 0, startClientY: 0, currentClientX: 0, currentClientY: 0, additive: false })
+  const [isSpacePressed, setIsSpacePressed] = useState(false)
+  const [isPanning, setIsPanning] = useState(false)
+  const panStartRef = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null)
 
   const currentPageIndex = state.document?.pageOrder.indexOf(currentPageId || "") ?? -1
   const currentPage = currentPageId ? state.pages[currentPageId] : null
@@ -113,6 +118,18 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
 
   const handleCanvasMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault()
+    if (isSpacePressed) {
+      if (scrollRef.current) {
+        panStartRef.current = {
+          x: e.clientX,
+          y: e.clientY,
+          scrollLeft: scrollRef.current.scrollLeft,
+          scrollTop: scrollRef.current.scrollTop,
+        }
+        setIsPanning(true)
+      }
+      return
+    }
     const additive = e.shiftKey || e.metaKey || e.ctrlKey
     selectionSnapshotRef.current = selectedElements
     setSelectionBox({
@@ -479,9 +496,35 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
   }, [selectionBox.active, zoom])
 
   React.useEffect(() => {
+    if (!isPanning) return
+    const handleMove = (e: MouseEvent) => {
+      if (!scrollRef.current || !panStartRef.current) return
+      const dx = panStartRef.current.x - e.clientX
+      const dy = panStartRef.current.y - e.clientY
+      scrollRef.current.scrollLeft = panStartRef.current.scrollLeft + dx
+      scrollRef.current.scrollTop = panStartRef.current.scrollTop + dy
+    }
+    const handleUp = () => {
+      setIsPanning(false)
+      panStartRef.current = null
+    }
+    window.addEventListener("mousemove", handleMove)
+    window.addEventListener("mouseup", handleUp)
+    return () => {
+      window.removeEventListener("mousemove", handleMove)
+      window.removeEventListener("mouseup", handleUp)
+    }
+  }, [isPanning])
+
+  React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null
       const inEditable = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
+
+      if (e.key === " " && !inEditable) {
+        setIsSpacePressed(true)
+        e.preventDefault()
+      }
 
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z" && !e.shiftKey) {
         e.preventDefault()
@@ -499,10 +542,41 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
     }
 
     window.addEventListener("keydown", handleKeyDown)
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === " ") {
+        setIsSpacePressed(false)
+        setIsPanning(false)
+        panStartRef.current = null
+      }
+    }
+    window.addEventListener("keyup", handleKeyUp)
     return () => {
       window.removeEventListener("keydown", handleKeyDown)
+      window.removeEventListener("keyup", handleKeyUp)
     }
   }, [deleteElements, selectedElements, undo])
+
+  React.useEffect(() => {
+    if (!scrollRef.current) {
+      prevZoomRef.current = zoom
+      return
+    }
+    const container = scrollRef.current
+    const prevZoom = prevZoomRef.current
+    const nextZoom = zoom
+    if (prevZoom === nextZoom) return
+
+    const centerX = (container.scrollLeft + container.clientWidth / 2) / prevZoom
+    const centerY = (container.scrollTop + container.clientHeight / 2) / prevZoom
+
+    const nextScrollLeft = centerX * nextZoom - container.clientWidth / 2
+    const nextScrollTop = centerY * nextZoom - container.clientHeight / 2
+
+    container.scrollLeft = nextScrollLeft
+    container.scrollTop = nextScrollTop
+
+    prevZoomRef.current = nextZoom
+  }, [zoom])
 
   const handleNextPage = () => {
     if (state.document && currentPageIndex < state.document.pageOrder.length - 1) {
@@ -563,7 +637,24 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
       </div>
 
       {/* Canvas */}
-      <div className="flex-1 overflow-auto p-8">
+      <div
+        ref={scrollRef}
+        className={cn("flex-1 overflow-auto p-8", isSpacePressed ? "cursor-grab" : "")}
+        onMouseDown={(e) => {
+          if (isSpacePressed) {
+            e.preventDefault()
+            if (scrollRef.current) {
+              panStartRef.current = {
+                x: e.clientX,
+                y: e.clientY,
+                scrollLeft: scrollRef.current.scrollLeft,
+                scrollTop: scrollRef.current.scrollTop,
+              }
+              setIsPanning(true)
+            }
+          }
+        }}
+      >
         <div className="mx-auto" style={{ width: `${canvasSize.width * zoom}px` }}>
           <div
             ref={canvasRef}
