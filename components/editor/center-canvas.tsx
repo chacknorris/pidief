@@ -823,11 +823,12 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
                   style={{
                     wordWrap: "break-word",
                     overflowWrap: "break-word",
+                    whiteSpace: "pre-wrap",
                     textAlign: text.textAlign || "left",
                   }}
                   onMouseDown={(e) => e.stopPropagation()}
                   onBlur={(e) => {
-                    const newContent = e.currentTarget.textContent || ""
+                    const newContent = (e.currentTarget.innerText || "").replace(/\r\n/g, "\n")
                     updateElement(text.id, { content: newContent })
                   }}
                 >

@@ -114,52 +114,6 @@ export async function exportFinalPDF(
         })
       }
 
-      // ===== TEXT =====
-      if (pageData.texts && pageData.texts.length > 0) {
-        for (const textElement of pageData.texts) {
-          const mapped = mapElementRect(
-            textElement,
-            { width: canvasWidth, height: canvasHeight },
-            { width: pageWidth, height: pageHeight },
-            useTransform ? metrics?.transform : undefined,
-          )
-
-          const font = textElement.bold
-            ? await pdfDoc.embedFont(StandardFonts.HelveticaBold).catch(() => pdfDoc.embedFont(StandardFonts.Helvetica))
-            : await pdfDoc.embedFont(StandardFonts.Helvetica)
-
-          const scaledFontSize = textElement.fontSize * mapped.scale
-          const color = hexToRgb(textElement.color)
-          const textWidth = font.widthOfTextAtSize(textElement.content, scaledFontSize)
-          const padding = 4 * mapped.scale
-          const absoluteWidth = Math.max(0, mapped.width - padding * 2)
-
-          let finalX = mapped.x + padding
-          switch (textElement.textAlign) {
-            case "center":
-              finalX = mapped.x + padding + (absoluteWidth - textWidth) / 2
-              break
-            case "right":
-              finalX = mapped.x + padding + absoluteWidth - textWidth
-              break
-            case "justify":
-            case "left":
-            default:
-              break
-          }
-          const topY = mapped.y + mapped.height
-          const baselineY = topY - padding - scaledFontSize
-
-          page.drawText(textElement.content, {
-            x: finalX,
-            y: baselineY,
-            size: scaledFontSize,
-            font,
-            color: rgb(color.r, color.g, color.b),
-          })
-        }
-      }
-
       // ===== HIGHLIGHTS =====
       if (pageData.highlights && pageData.highlights.length > 0) {
         for (const highlight of pageData.highlights) {
@@ -214,9 +168,9 @@ export async function exportFinalPDF(
             { x: 0, y: mid },
             { x: shaftEnd, y: mid },
             { x: shaftEnd, y: mid }, // duplicate for polyline start
-            { x: absoluteWidth - headSize, y: mid + headSize },
-            { x: absoluteWidth, y: mid },
-            { x: absoluteWidth - headSize, y: mid - headSize },
+            { x: mapped.width - headSize, y: mid + headSize },
+            { x: mapped.width, y: mid },
+            { x: mapped.width - headSize, y: mid - headSize },
           ]
 
           const angleRad = ((arrow.angle ?? 0) * Math.PI) / 180
@@ -243,6 +197,63 @@ export async function exportFinalPDF(
 
           page.drawSvgPath(headPath, {
             color: rgb(color.r, color.g, color.b),
+          })
+        }
+      }
+
+      // ===== TEXT =====
+      if (pageData.texts && pageData.texts.length > 0) {
+        for (const textElement of pageData.texts) {
+          const mapped = mapElementRect(
+            textElement,
+            { width: canvasWidth, height: canvasHeight },
+            { width: pageWidth, height: pageHeight },
+            useTransform ? metrics?.transform : undefined,
+          )
+
+          const font = textElement.bold
+            ? await pdfDoc.embedFont(StandardFonts.HelveticaBold).catch(() => pdfDoc.embedFont(StandardFonts.Helvetica))
+            : await pdfDoc.embedFont(StandardFonts.Helvetica)
+
+          const scaledFontSize = textElement.fontSize * mapped.scale
+          const color = hexToRgb(textElement.color)
+          const padding = 4 * mapped.scale
+          const absoluteWidth = Math.max(0, mapped.width - padding * 2)
+          const absoluteHeight = Math.max(0, mapped.height - padding * 2)
+          const lineHeight = Math.max(1, scaledFontSize * 1.2)
+
+          const content = normalizeLineBreaks(textElement.content || "")
+          const lines = wrapText(content, font, scaledFontSize, absoluteWidth)
+          const maxLines = lineHeight > 0 ? Math.floor(absoluteHeight / lineHeight) : 0
+          const visibleLines = maxLines > 0 ? lines.slice(0, maxLines) : []
+
+          const topY = mapped.y + mapped.height - padding
+          const baselineY = topY - scaledFontSize
+
+          visibleLines.forEach((line, index) => {
+            const lineWidth = font.widthOfTextAtSize(line, scaledFontSize)
+            let finalX = mapped.x + padding
+
+            switch (textElement.textAlign) {
+              case "center":
+                finalX = mapped.x + padding + (absoluteWidth - lineWidth) / 2
+                break
+              case "right":
+                finalX = mapped.x + padding + absoluteWidth - lineWidth
+                break
+              case "justify":
+              case "left":
+              default:
+                break
+            }
+
+            page.drawText(line, {
+              x: finalX,
+              y: baselineY - index * lineHeight,
+              size: scaledFontSize,
+              font,
+              color: rgb(color.r, color.g, color.b),
+            })
           })
         }
       }
@@ -429,4 +440,60 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
   const b = Number.parseInt(hex.substring(4, 6), 16) / 255
 
   return { r, g, b }
+}
+
+function normalizeLineBreaks(value: string): string {
+  return value.replace(/\r\n/g, "\n")
+}
+
+function wrapText(text: string, font: { widthOfTextAtSize: (text: string, size: number) => number }, size: number, maxWidth: number): string[] {
+  if (!text) return []
+  if (maxWidth <= 0) return text.split("\n")
+
+  const lines: string[] = []
+  const paragraphs = text.split("\n")
+
+  for (const paragraph of paragraphs) {
+    if (!paragraph) {
+      lines.push("")
+      continue
+    }
+
+    const words = paragraph.split(/\s+/)
+    let line = ""
+
+    for (const word of words) {
+      const testLine = line ? `${line} ${word}` : word
+
+      if (font.widthOfTextAtSize(testLine, size) <= maxWidth) {
+        line = testLine
+        continue
+      }
+
+      if (line) {
+        lines.push(line)
+      }
+
+      if (font.widthOfTextAtSize(word, size) <= maxWidth) {
+        line = word
+        continue
+      }
+
+      let chunk = ""
+      for (const char of word) {
+        const testChunk = chunk + char
+        if (font.widthOfTextAtSize(testChunk, size) <= maxWidth) {
+          chunk = testChunk
+        } else {
+          if (chunk) lines.push(chunk)
+          chunk = char
+        }
+      }
+      line = chunk
+    }
+
+    lines.push(line)
+  }
+
+  return lines
 }
