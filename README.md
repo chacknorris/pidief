@@ -1,8 +1,29 @@
 # PIDIEF
 
+![GitHub stars](https://img.shields.io/github/stars/chacknorris/pidief?style=social)
+![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)
+![Demo](https://img.shields.io/badge/demo-live-blue?link=https%3A%2F%2Fpidief.vercel.app)
+
 Privacy-first PDF merge and annotation in the browser, with no uploads and no backend.
 
 [Live demo](https://pidief.vercel.app)
+
+## Start in 5 minutes
+
+```bash
+git clone https://github.com/chacknorris/pidief.git
+cd pidief
+npm install
+npm run dev
+```
+
+Then open `http://localhost:3000`.
+
+If you only want the fastest contributor path:
+
+1. Run the app locally.
+2. Read [CONTRIBUTING.md](CONTRIBUTING.md).
+3. Pick a starter task from [docs/good-first-issues.md](docs/good-first-issues.md).
 
 ## Why PIDIEF exists
 
@@ -55,6 +76,16 @@ In practice:
 4. `pdf-lib` copies source pages into a new PDF and draws the overlays during export.
 
 More detail: [docs/architecture.md](docs/architecture.md)
+
+## Where to start in the codebase
+
+If you want to contribute quickly:
+
+- Start with `components/pdf-editor/` for visible UI changes
+- Use `lib/i18n.ts` for copy and label improvements
+- Use `hooks/use-pdf-state.ts` for editing actions and document state behavior
+- Use `lib/pdf-export.ts` for final PDF generation behavior
+- Read [docs/contributor-ideas.md](docs/contributor-ideas.md) for safe vs central areas
 
 ## Tech stack
 
@@ -129,19 +160,24 @@ Start with [CONTRIBUTING.md](CONTRIBUTING.md), then look at:
 - [docs/architecture.md](docs/architecture.md)
 - [docs/roadmap.md](docs/roadmap.md)
 - [docs/contributor-ideas.md](docs/contributor-ideas.md)
+- [docs/good-first-issues.md](docs/good-first-issues.md)
+- [docs/medium-issues.md](docs/medium-issues.md)
+- [docs/community.md](docs/community.md)
 
 Small, practical contributions are especially welcome: bug fixes, PDF workflow improvements, accessibility, keyboard support, performance work, and documentation.
 
 ## Good first contributions
 
-- Add page thumbnails loading states and empty states
-- Improve keyboard shortcuts discovery in the UI
-- Add an undo/redo history indicator
-- Improve touch and mobile interactions for annotation handles
-- Document the JSON state format with concrete examples
-- Add better error messages for corrupt or password-protected PDFs
-- Add tests for page deletion and reorder edge cases
-- Replace remaining hard-coded prompts and alerts with UI dialogs
+- [Add a keyboard shortcuts help modal](docs/good-first-issues.md)
+- [Replace browser prompts with app dialogs](docs/good-first-issues.md)
+- [Improve the pre-import empty state](docs/good-first-issues.md)
+- [Add thumbnail loading placeholders](docs/good-first-issues.md)
+- [Cover duplicate/delete page edge cases with tests](docs/good-first-issues.md)
+- [Improve invalid PDF error messages](docs/good-first-issues.md)
+- [Improve page reorder drag feedback](docs/good-first-issues.md)
+- [Improve keyboard focus visibility](docs/good-first-issues.md)
+- [Add a sample saved-state JSON fixture](docs/good-first-issues.md)
+- [Document safe first contribution areas](docs/good-first-issues.md)
 
 ## Roadmap
 
@@ -161,6 +197,7 @@ Full roadmap: [docs/roadmap.md](docs/roadmap.md)
 - Add or update tests when changing PDF export or state behavior
 - Document user-facing workflow changes
 - Open an issue first for larger changes when possible
+- Prefer small PRs over “kitchen sink” refactors
 
 ## Security
 

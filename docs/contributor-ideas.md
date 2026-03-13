@@ -1,50 +1,35 @@
 # Contributor Ideas
 
-Concrete starter tasks for contributors who want to make a useful improvement without redesigning the whole app.
+This page is the quick index. For structured issue candidates, see:
 
-## Good first issues
+- [docs/good-first-issues.md](good-first-issues.md)
+- [docs/medium-issues.md](medium-issues.md)
+- [docs/community.md](community.md)
 
-- Add a dedicated empty state for the page sidebar before any PDF is loaded
-- Replace browser `alert()` and `prompt()` calls with in-app dialogs
-- Improve error copy when PDF parsing fails
-- Add a keyboard shortcuts help modal
-- Add tests for duplicate-page and delete-page behavior
+## Safe places to start
 
-## Workflow improvements
+If you are new to the codebase, these areas are the safest entry points:
 
-- Page reorder polish with clearer drag targets
-- Split PDF into selected pages
-- Page thumbnails with current-page jump improvements
-- Multi-file import UX improvements
-- Remember last-used pagination settings
+- `components/pdf-editor/right-panel.tsx` for control labels and property UI
+- `components/pdf-editor/top-bar.tsx` for import/export affordances
+- `lib/i18n.ts` for copy improvements
+- docs and issue templates under `docs/` and `.github/`
+- tests in `hooks/use-pdf-state.test.ts` and `lib/pdf-export.test.ts`
 
-## Annotation improvements
+## Higher-risk areas
 
-- Undo and redo for drawing and page operations
-- Better text editing experience
-- Touch-friendly resize and rotate handles
-- Snap-to-guides or alignment helpers
-- Export annotation layers separately
+These files are central to the editor and benefit from smaller, well-tested PRs:
 
-## Performance ideas
+- `components/pdf-editor/center-canvas.tsx`
+- `hooks/use-pdf-state.ts`
+- `lib/pdf-export.ts`
 
-- Reduce repeated PDF.js document loading across views
-- Optimize large-PDF rendering
-- Improve memory behavior for merged multi-file sessions
-- Add simple instrumentation for render timing
+## Good contribution themes
 
-## Accessibility and UX
-
-- Full keyboard navigation across side panels
-- Better focus states for editor controls
-- Screen reader labels for annotation actions
-- Higher-contrast annotation handles
-- Mobile layout improvements
-
-## Broader feature ideas
-
-- Keyboard shortcuts for common actions
-- PWA and offline support
-- Page thumbnails grid mode
-- Annotation presets
-- Better footer and page-number templates
+- onboarding and documentation clarity
+- accessibility improvements
+- keyboard support
+- touch and mobile UX
+- better error states
+- test coverage around PDF state and export
+- performance improvements for larger files
