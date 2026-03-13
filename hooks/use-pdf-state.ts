@@ -1,7 +1,20 @@
 "use client"
 
 import { useState, useCallback, useRef, useEffect } from "react"
+import {
+  cloneDocumentState,
+  createEmptyPageData,
+  createInitialDocumentState,
+} from "../lib/pdf-state"
 import { getPdfJs } from "../lib/pdfjs"
+import type {
+  ArrowElement,
+  DocumentState,
+  HighlightElement,
+  PageData,
+  PDFState,
+  TextElement,
+} from "../types/pdf"
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   if (typeof Buffer !== "undefined") {
@@ -30,138 +43,6 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
     bytes[i] = binary.charCodeAt(i)
   }
   return bytes.buffer
-}
-
-export interface TextElement {
-  id: string
-  type: "text"
-  x: number
-  y: number
-  width: number
-  height: number
-  content: string
-  fontSize: number
-  color: string
-  bold: boolean
-  textAlign: "left" | "center" | "right" | "justify"
-}
-
-export interface HighlightElement {
-  id: string
-  type: "highlight"
-  x: number
-  y: number
-  width: number
-  height: number
-  color: string
-  opacity: number
-  fillColor?: string
-  fillOpacity?: number
-  borderColor?: string
-  borderOpacity?: number
-  style: "fill" | "border" | "both"
-  borderWidth: number
-}
-
-export interface ArrowElement {
-  id: string
-  type: "arrow"
-  x: number
-  y: number
-  width: number
-  height: number
-  color: string
-  thickness: number
-  angle: number
-}
-
-export interface PageData {
-  texts: TextElement[]
-  highlights: HighlightElement[]
-  arrows: ArrowElement[]
-  footer: {
-    number: string
-    detail: string
-  }
-}
-
-export interface DocumentState {
-  document: {
-    name: string
-    createdAt: string
-    pageOrder: string[]
-  } | null
-  pages: Record<string, PageData>
-  pagination: {
-    enabled: boolean
-    position: "bottom-center" | "bottom-right" | "top-right"
-    startAt: number
-    backgroundBox: boolean
-  }
-  language: "en" | "es"
-  coordinateSpace: "legacy-612" | "pdf"
-  // Legacy single PDF reference (kept for backward compatibility, not serialized)
-  originalPdfBytes: ArrayBuffer | null
-  // Multiple PDF sources to allow merging/ordering across imports
-  originalPdfSources: ArrayBuffer[]
-  pageMetrics: Record<
-    string,
-    {
-      width: number
-      height: number
-      pageIndex: number
-      sourceIndex: number
-      transform?: number[]
-    }
-  >
-}
-
-export interface PDFState {
-  state: DocumentState
-  currentPageId: string | null
-  selectedElements: string[]
-  addMode: "text" | null
-  loadPDF: (file: File) => Promise<void>
-  saveState: () => string
-  loadState: (json: string) => void
-  exportPDF: () => Promise<void>
-  setCurrentPageId: (id: string) => void
-  setSelectedElements: (ids: string[]) => void
-  toggleElementSelection: (id: string, additive: boolean) => void
-  setAddMode: (mode: PDFState["addMode"]) => void
-  addTextElement: (x: number, y: number) => void
-  addHighlight: () => void
-  addArrow: () => void
-  updateElement: (id: string, updates: any) => void
-  updateElements: (updates: Record<string, any>) => void
-  deleteElement: (id: string) => void
-  deleteElements: (ids: string[]) => void
-  duplicatePage: (pageId: string) => void
-  deletePage: (pageId: string) => void
-  reorderPages: (draggedId: string, targetId: string) => void
-  updatePagination: (updates: Partial<DocumentState["pagination"]>) => void
-  updatePageFooter: (
-    pageId: string,
-    updates: Partial<PageData["footer"]>,
-  ) => void
-  updateLanguage: (lang: DocumentState["language"]) => void
-  undo: () => void
-}
-
-const initialState: DocumentState = {
-  document: null,
-  pages: {},
-  pagination: {
-    enabled: false,
-    position: "bottom-center",
-    startAt: 1,
-    backgroundBox: false,
-  },
-  language: "en",
-  coordinateSpace: "pdf",
-  originalPdfBytes: null,
-  originalPdfSources: [],
-  pageMetrics: {},
 }
 
 export function serializeDocumentState(state: DocumentState): string {
@@ -363,33 +244,8 @@ export function deserializeDocumentState(
   }
 }
 
-function cloneDocumentState(state: DocumentState): DocumentState {
-  const pages: Record<string, PageData> = {}
-  Object.entries(state.pages).forEach(([id, page]) => {
-    pages[id] = {
-      texts: page.texts.map((t) => ({ ...t })),
-      highlights: page.highlights.map((h) => ({ ...h })),
-      arrows: page.arrows.map((a) => ({ ...a })),
-      footer: { ...page.footer },
-    }
-  })
-
-  return {
-    document: state.document
-      ? { ...state.document, pageOrder: [...state.document.pageOrder] }
-      : null,
-    pages,
-    pagination: { ...state.pagination },
-    language: state.language,
-    coordinateSpace: state.coordinateSpace,
-    originalPdfBytes: state.originalPdfBytes,
-    originalPdfSources: state.originalPdfSources,
-    pageMetrics: { ...state.pageMetrics },
-  }
-}
-
 export function usePDFState(): PDFState {
-  const [state, setState] = useState<DocumentState>(initialState)
+  const [state, setState] = useState<DocumentState>(createInitialDocumentState)
   const [currentPageId, setCurrentPageId] = useState<string | null>(null)
   const [selectedElements, setSelectedElements] = useState<string[]>([])
   const [addMode, setAddMode] = useState<PDFState["addMode"]>(null)
@@ -458,15 +314,7 @@ export function usePDFState(): PDFState {
 
           const pageId = `page-${Date.now()}-${i}`
           pageOrder.push(pageId)
-          pages[pageId] = {
-            texts: [],
-            highlights: [],
-            arrows: [],
-            footer: {
-              number: "",
-              detail: "",
-            },
-          }
+          pages[pageId] = createEmptyPageData()
           pageMetrics[pageId] = {
             width: viewport.width,
             height: viewport.height,
@@ -664,12 +512,7 @@ export function usePDFState(): PDFState {
 
       setState((prev) => {
         pushHistory(prev)
-        const page = prev.pages[currentPageId] ?? {
-          texts: [],
-          highlights: [],
-          arrows: [],
-          footer: { number: "", detail: "" },
-        }
+        const page = prev.pages[currentPageId] ?? createEmptyPageData()
         return {
           ...prev,
           pages: {
@@ -707,12 +550,7 @@ export function usePDFState(): PDFState {
 
       setState((prev) => {
         pushHistory(prev)
-        const page = prev.pages[currentPageId] ?? {
-          texts: [],
-          highlights: [],
-          arrows: [],
-          footer: { number: "", detail: "" },
-        }
+        const page = prev.pages[currentPageId] ?? createEmptyPageData()
         return {
           ...prev,
           pages: {
@@ -737,12 +575,7 @@ export function usePDFState(): PDFState {
 
       setState((prev) => {
         pushHistory(prev)
-        const page = prev.pages[currentPageId] ?? {
-          texts: [],
-          highlights: [],
-          arrows: [],
-          footer: { number: "", detail: "" },
-        }
+        const page = prev.pages[currentPageId] ?? createEmptyPageData()
         return {
           ...prev,
           pages: {

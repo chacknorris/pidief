@@ -6,7 +6,7 @@ import {
   deserializeDocumentState,
   serializeDocumentState,
 } from "./use-pdf-state"
-import type { DocumentState } from "./use-pdf-state"
+import type { DocumentState } from "../types/pdf"
 
 function toArrayBuffer(uint8: Uint8Array): ArrayBuffer {
   return uint8.buffer.slice(

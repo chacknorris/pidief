@@ -30,6 +30,8 @@ That design keeps the project:
 
 ### State management
 
+- `types/pdf.ts` defines the shared editor contracts
+- `lib/pdf-state.ts` contains reusable initial-state and cloning helpers
 - `hooks/use-pdf-state.ts` is the main source of truth
 - it stores the imported document model, page metrics, overlays, selection state, pagination options, language, and undo history
 - all editing actions flow through this hook

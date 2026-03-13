@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { FileUp, FileDown, Download, FolderOpen } from "lucide-react"
-import type { PDFState } from "@/hooks/use-pdf-state"
+import type { PDFState } from "@/types/pdf"
 import { getCopy } from "@/lib/i18n"
 
 interface TopBarProps {

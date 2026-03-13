@@ -1,5 +1,5 @@
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib"
-import type { DocumentState } from "@/hooks/use-pdf-state"
+import type { DocumentState } from "@/types/pdf"
 
 /**
  * Exports a PDF with overlays applied according to the document state.

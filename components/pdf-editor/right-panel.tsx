@@ -23,7 +23,7 @@ import {
   AlignJustify,
   ArrowRight,
 } from "lucide-react"
-import type { PDFState } from "@/hooks/use-pdf-state"
+import type { PDFState } from "@/types/pdf"
 import { getCopy } from "@/lib/i18n"
 
 interface RightPanelProps {

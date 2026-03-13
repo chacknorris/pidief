@@ -40,6 +40,8 @@ PIDIEF follows a simple local-first model:
 
 - `components/pdf-editor/` contains the editor UI shell and panels
 - `hooks/use-pdf-state.ts` owns the application state and editing actions
+- `types/pdf.ts` defines the shared document, page, and overlay contracts
+- `lib/pdf-state.ts` contains reusable state factories and cloning helpers
 - `lib/pdf-export.ts` generates the final PDF with `pdf-lib`
 - `lib/pdfjs.ts` loads and configures PDF.js for in-browser rendering
 - `lib/i18n.ts` stores UI copy
