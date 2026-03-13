@@ -1,14 +1,41 @@
 {
-  "name": "my-v0-project",
+  "name": "pidief",
   "version": "0.1.0",
+  "description": "Privacy-first browser-based PDF merge and annotation tool.",
   "private": true,
+  "license": "MIT",
+  "homepage": "https://pidief.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chacknorris/pidief.git"
+  },
+  "bugs": {
+    "url": "https://github.com/chacknorris/pidief/issues"
+  },
+  "keywords": [
+    "pdf",
+    "pdf-editor",
+    "pdf-merge",
+    "annotation",
+    "client-side",
+    "privacy-first",
+    "nextjs"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "next build",
+    "check": "npm run typecheck && npm run lint && npm run test",
     "dev": "next dev",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint:fix": "eslint . --fix",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
-    "start": "next start"
+    "start": "next start",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -75,6 +102,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "globals": "^16.5.0",
     "postcss": "^8.5",
+    "prettier": "^3.8.1",
     "tailwindcss": "^4.1.9",
     "tw-animate-css": "1.3.3",
     "typescript": "^5",

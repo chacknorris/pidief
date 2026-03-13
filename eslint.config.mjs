@@ -7,7 +7,13 @@ import jsxA11y from "eslint-plugin-jsx-a11y"
 export default tseslint.config(
   {
     name: "ignores",
-    ignores: ["**/node_modules/**", ".next/**", "public/**", "dist/**", "out/**"],
+    ignores: [
+      "**/node_modules/**",
+      ".next/**",
+      "public/**",
+      "dist/**",
+      "out/**",
+    ],
   },
   {
     name: "base",

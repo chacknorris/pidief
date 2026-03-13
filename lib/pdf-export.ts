@@ -11,7 +11,7 @@ import type { DocumentState } from "@/hooks/use-pdf-state"
  */
 export async function exportFinalPDF(
   originalPdfSources: ArrayBuffer[],
-  documentState: DocumentState
+  documentState: DocumentState,
 ): Promise<Uint8Array> {
   try {
     const { document: doc, pagination, pageMetrics } = documentState
@@ -25,7 +25,9 @@ export async function exportFinalPDF(
     }
 
     // Load all source PDFs (each import is a source)
-    const sourcePdfs = await Promise.all(originalPdfSources.map((bytes) => PDFDocument.load(bytes)))
+    const sourcePdfs = await Promise.all(
+      originalPdfSources.map((bytes) => PDFDocument.load(bytes)),
+    )
 
     // Build a new PDF so we can respect the current page order
     const pdfDoc = await PDFDocument.create()
@@ -42,7 +44,9 @@ export async function exportFinalPDF(
       const pageData = documentState.pages[pageId]
 
       const sourcePdf = sourcePdfs[sourceIndex] ?? sourcePdfs[0]
-      const [page] = sourcePdf ? await pdfDoc.copyPages(sourcePdf, [sourcePageIndex]) : [undefined]
+      const [page] = sourcePdf
+        ? await pdfDoc.copyPages(sourcePdf, [sourcePageIndex])
+        : [undefined]
 
       if (!page || !pageData) continue
 
@@ -57,18 +61,24 @@ export async function exportFinalPDF(
       const canvasWidth = canvasSize.width
       const canvasHeight = canvasSize.height
       const useTransform =
-        documentState.coordinateSpace !== "legacy-612" && Array.isArray(metrics?.transform) && metrics?.transform?.length === 6
+        documentState.coordinateSpace !== "legacy-612" &&
+        Array.isArray(metrics?.transform) &&
+        metrics?.transform?.length === 6
 
       // ===== PAGE NUMBERS =====
       const manualPaginationText = pagination.enabled
         ? ""
-        : [pageData.footer?.number, pageData.footer?.detail].filter((value) => value?.trim()).join(" - ")
+        : [pageData.footer?.number, pageData.footer?.detail]
+            .filter((value) => value?.trim())
+            .join(" - ")
 
       if (pagination.enabled || manualPaginationText) {
         const pageNumber = i + pagination.startAt
         const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
         const fontSize = 12
-        const text = pagination.enabled ? String(pageNumber) : manualPaginationText
+        const text = pagination.enabled
+          ? String(pageNumber)
+          : manualPaginationText
         const textWidth = font.widthOfTextAtSize(text, fontSize)
 
         let x = 0
@@ -129,16 +139,22 @@ export async function exportFinalPDF(
           const borderColor = hexToRgb(highlight.borderColor ?? highlight.color)
           const fillOpacity = highlight.fillOpacity ?? highlight.opacity
           const borderOpacity = highlight.borderOpacity ?? highlight.opacity
-          const borderWidth = showBorder ? Math.max(1, (highlight.borderWidth ?? 2) * mapped.scale) : 0
+          const borderWidth = showBorder
+            ? Math.max(1, (highlight.borderWidth ?? 2) * mapped.scale)
+            : 0
 
           page.drawRectangle({
             x: mapped.x,
             y: mapped.y,
             width: mapped.width,
             height: mapped.height,
-            color: showFill ? rgb(fillColor.r, fillColor.g, fillColor.b) : undefined,
+            color: showFill
+              ? rgb(fillColor.r, fillColor.g, fillColor.b)
+              : undefined,
             opacity: showFill ? fillOpacity : undefined,
-            borderColor: showBorder ? rgb(borderColor.r, borderColor.g, borderColor.b) : undefined,
+            borderColor: showBorder
+              ? rgb(borderColor.r, borderColor.g, borderColor.b)
+              : undefined,
             borderWidth: showBorder ? borderWidth : undefined,
             borderOpacity: showBorder ? borderOpacity : undefined,
           })
@@ -212,7 +228,9 @@ export async function exportFinalPDF(
           )
 
           const font = textElement.bold
-            ? await pdfDoc.embedFont(StandardFonts.HelveticaBold).catch(() => pdfDoc.embedFont(StandardFonts.Helvetica))
+            ? await pdfDoc
+                .embedFont(StandardFonts.HelveticaBold)
+                .catch(() => pdfDoc.embedFont(StandardFonts.Helvetica))
             : await pdfDoc.embedFont(StandardFonts.Helvetica)
 
           const scaledFontSize = textElement.fontSize * mapped.scale
@@ -224,7 +242,8 @@ export async function exportFinalPDF(
 
           const content = normalizeLineBreaks(textElement.content || "")
           const lines = wrapText(content, font, scaledFontSize, absoluteWidth)
-          const maxLines = lineHeight > 0 ? Math.floor(absoluteHeight / lineHeight) : 0
+          const maxLines =
+            lineHeight > 0 ? Math.floor(absoluteHeight / lineHeight) : 0
           const visibleLines = maxLines > 0 ? lines.slice(0, maxLines) : []
 
           const topY = mapped.y + mapped.height - padding
@@ -280,7 +299,7 @@ export function normalizeCoordinates(
   absoluteX: number,
   absoluteY: number,
   pageWidth: number,
-  pageHeight: number
+  pageHeight: number,
 ): { normalizedX: number; normalizedY: number } {
   return {
     normalizedX: absoluteX / pageWidth,
@@ -301,7 +320,7 @@ export function denormalizeCoordinates(
   normalizedX: number,
   normalizedY: number,
   pageWidth: number,
-  pageHeight: number
+  pageHeight: number,
 ): { absoluteX: number; absoluteY: number } {
   return {
     absoluteX: normalizedX * pageWidth,
@@ -317,7 +336,11 @@ export function denormalizeCoordinates(
  * @param pageHeight - Page height
  * @returns Y coordinate in PDF system
  */
-export function canvasToPdfY(canvasY: number, elementHeight: number, pageHeight: number): number {
+export function canvasToPdfY(
+  canvasY: number,
+  elementHeight: number,
+  pageHeight: number,
+): number {
   return pageHeight - canvasY - elementHeight
 }
 
@@ -330,7 +353,11 @@ function mapElementRect(
   if (transform && transform.length === 6) {
     const inverse = invertTransform(transform)
     const topLeft = applyTransform(inverse, element.x, element.y)
-    const bottomRight = applyTransform(inverse, element.x + element.width, element.y + element.height)
+    const bottomRight = applyTransform(
+      inverse,
+      element.x + element.width,
+      element.y + element.height,
+    )
 
     const x = Math.min(topLeft.x, bottomRight.x)
     const y = Math.min(topLeft.y, bottomRight.y)
@@ -346,7 +373,13 @@ function mapElementRect(
           ? scaleX
           : scaleY
 
-    return { x, y, width, height, scale: Number.isFinite(scale) && scale > 0 ? scale : 1 }
+    return {
+      x,
+      y,
+      width,
+      height,
+      scale: Number.isFinite(scale) && scale > 0 ? scale : 1,
+    }
   }
 
   const normalizedX = element.x / canvasSize.width
@@ -368,7 +401,11 @@ function mapElementRect(
   }
 }
 
-function applyTransform(matrix: number[], x: number, y: number): { x: number; y: number } {
+function applyTransform(
+  matrix: number[],
+  x: number,
+  y: number,
+): { x: number; y: number } {
   return {
     x: matrix[0] * x + matrix[2] * y + matrix[4],
     y: matrix[1] * x + matrix[3] * y + matrix[5],
@@ -414,7 +451,9 @@ function getCanvasSize(
     return { width: metrics.width, height: metrics.height }
   }
 
-  return fallback.width && fallback.height ? fallback : { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT }
+  return fallback.width && fallback.height
+    ? fallback
+    : { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT }
 }
 
 /**
@@ -446,7 +485,12 @@ function normalizeLineBreaks(value: string): string {
   return value.replace(/\r\n/g, "\n")
 }
 
-function wrapText(text: string, font: { widthOfTextAtSize: (text: string, size: number) => number }, size: number, maxWidth: number): string[] {
+function wrapText(
+  text: string,
+  font: { widthOfTextAtSize: (text: string, size: number) => number },
+  size: number,
+  maxWidth: number,
+): string[] {
   if (!text) return []
   if (maxWidth <= 0) return text.split("\n")
 

@@ -8,6 +8,7 @@ import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from "lucide-react"
 import type { PDFState } from "@/hooks/use-pdf-state"
+import { getPdfJs } from "@/lib/pdfjs"
 import { cn } from "@/lib/utils"
 import { getCopy } from "@/lib/i18n"
 
@@ -59,9 +60,16 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
   const renderTaskRef = useRef<any>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
-  const [dragStartPositions, setDragStartPositions] = useState<Record<string, { x: number; y: number }>>({})
+  const [dragStartPositions, setDragStartPositions] = useState<
+    Record<string, { x: number; y: number }>
+  >({})
   const [isResizing, setIsResizing] = useState(false)
-  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 })
+  const [resizeStart, setResizeStart] = useState({
+    x: 0,
+    y: 0,
+    width: 0,
+    height: 0,
+  })
   const [resizeTargetId, setResizeTargetId] = useState<string | null>(null)
   const [resizeLockHeight, setResizeLockHeight] = useState(false)
   const [isRotating, setIsRotating] = useState(false)
@@ -74,14 +82,29 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
     currentClientX: number
     currentClientY: number
     additive: boolean
-  }>({ active: false, startClientX: 0, startClientY: 0, currentClientX: 0, currentClientY: 0, additive: false })
+  }>({
+    active: false,
+    startClientX: 0,
+    startClientY: 0,
+    currentClientX: 0,
+    currentClientY: 0,
+    additive: false,
+  })
   const [isSpacePressed, setIsSpacePressed] = useState(false)
   const [isPanning, setIsPanning] = useState(false)
-  const panStartRef = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null)
+  const panStartRef = useRef<{
+    x: number
+    y: number
+    scrollLeft: number
+    scrollTop: number
+  } | null>(null)
 
-  const currentPageIndex = state.document?.pageOrder.indexOf(currentPageId || "") ?? -1
+  const currentPageIndex =
+    state.document?.pageOrder.indexOf(currentPageId || "") ?? -1
   const currentPage = currentPageId ? state.pages[currentPageId] : null
-  const currentPageMetrics = currentPageId ? state.pageMetrics[currentPageId] : undefined
+  const currentPageMetrics = currentPageId
+    ? state.pageMetrics[currentPageId]
+    : undefined
   const allElements = React.useMemo(
     () =>
       currentPage
@@ -93,7 +116,10 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
         : [],
     [currentPage],
   )
-  const elementMap = React.useMemo(() => new Map(allElements.map((el) => [el.id, el])), [allElements])
+  const elementMap = React.useMemo(
+    () => new Map(allElements.map((el) => [el.id, el])),
+    [allElements],
+  )
 
   const canvasSize = React.useMemo(() => {
     const DEFAULT_WIDTH = 612
@@ -102,7 +128,8 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
     if (state.coordinateSpace === "legacy-612") {
       if (currentPageMetrics?.width && currentPageMetrics?.height) {
         const width = DEFAULT_WIDTH
-        const height = (currentPageMetrics.height / currentPageMetrics.width) * width
+        const height =
+          (currentPageMetrics.height / currentPageMetrics.width) * width
         return { width, height }
       }
 
@@ -110,7 +137,10 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
     }
 
     if (currentPageMetrics?.width && currentPageMetrics?.height) {
-      return { width: currentPageMetrics.width, height: currentPageMetrics.height }
+      return {
+        width: currentPageMetrics.width,
+        height: currentPageMetrics.height,
+      }
     }
 
     return { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT }
@@ -206,12 +236,17 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
   const handleSelectionMove = (e: MouseEvent) => {
     if (!selectionBox.active) return
     e.preventDefault()
-    setSelectionBox((prev) => ({ ...prev, currentClientX: e.clientX, currentClientY: e.clientY }))
+    setSelectionBox((prev) => ({
+      ...prev,
+      currentClientX: e.clientX,
+      currentClientY: e.clientY,
+    }))
   }
 
   const handleSelectionEnd = (e?: MouseEvent) => {
     if (!selectionBox.active) return
-    const { startClientX, startClientY, currentClientX, currentClientY } = selectionBox
+    const { startClientX, startClientY, currentClientX, currentClientY } =
+      selectionBox
     const modifierActive = e ? e.shiftKey || e.metaKey || e.ctrlKey : false
     const dx = Math.abs(currentClientX - startClientX)
     const dy = Math.abs(currentClientY - startClientY)
@@ -239,10 +274,15 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
 
     let selected: string[] = []
     if (canvasRef.current) {
-      const nodes = canvasRef.current.querySelectorAll<HTMLElement>("[data-element-id]")
+      const nodes =
+        canvasRef.current.querySelectorAll<HTMLElement>("[data-element-id]")
       nodes.forEach((node) => {
         const rect = node.getBoundingClientRect()
-        const touches = rect.left <= x2 && rect.right >= x1 && rect.top <= y2 && rect.bottom >= y1
+        const touches =
+          rect.left <= x2 &&
+          rect.right >= x1 &&
+          rect.top <= y2 &&
+          rect.bottom >= y1
         if (touches && node.dataset.elementId) {
           selected.push(node.dataset.elementId)
         }
@@ -251,13 +291,19 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
 
     const additive = selectionBox.additive || modifierActive
     const base = selectionSnapshotRef.current
-    const finalSelection = additive ? Array.from(new Set([...base, ...selected])) : selected
+    const finalSelection = additive
+      ? Array.from(new Set([...base, ...selected]))
+      : selected
 
     setSelectedElements(finalSelection)
     setAddMode(null)
   }
 
-  const handleResizeStart = (e: React.MouseEvent, elementId: string, element: any) => {
+  const handleResizeStart = (
+    e: React.MouseEvent,
+    elementId: string,
+    element: any,
+  ) => {
     e.stopPropagation()
     setSelectedElements([elementId])
     setResizeTargetId(elementId)
@@ -326,12 +372,7 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
         return
       }
 
-      const pdfjsLib = await import("pdfjs-dist")
-
-      if (typeof window !== "undefined") {
-        const workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString()
-        pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc
-      }
+      const pdfjsLib = await getPdfJs()
 
       await Promise.all(
         state.originalPdfSources.map(async (bytes, index) => {
@@ -372,20 +413,26 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
         renderTaskRef.current = null
       }
       const canvas = pdfCanvasRef.current
-      const metrics = state.pageMetrics[currentPageId]
+      const metrics = currentPageId
+        ? state.pageMetrics[currentPageId]
+        : undefined
       if (!pdfDocRef.current) return
       const pdfDoc = pdfDocRef.current.get(metrics?.sourceIndex ?? 0)
 
       if (!canvas || !pdfDoc || !currentPageId || !state.document) return
 
-      const pageIndex = metrics?.pageIndex ?? state.document.pageOrder.indexOf(currentPageId)
+      const pageIndex =
+        metrics?.pageIndex ?? state.document.pageOrder.indexOf(currentPageId)
       if (pageIndex < 0) return
 
       let page
       try {
         page = await pdfDoc.getPage(pageIndex + 1)
       } catch (error: any) {
-        if (error?.name === "RenderingCancelledException" || error?.message?.toLowerCase().includes("rendering cancelled")) {
+        if (
+          error?.name === "RenderingCancelledException" ||
+          error?.message?.toLowerCase().includes("rendering cancelled")
+        ) {
           return
         }
         throw error
@@ -393,11 +440,15 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
 
       if (cancelled) return
 
-      const sourceWidth = currentPageMetrics?.width ?? page.view?.[2] ?? canvasSize.width
+      const sourceWidth =
+        currentPageMetrics?.width ?? page.view?.[2] ?? canvasSize.width
       const baseScale = canvasSize.width / sourceWidth
-      const pixelRatio = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1
+      const pixelRatio =
+        typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1
       const qualityScale = Math.max(1, zoom)
-      const viewport = page.getViewport({ scale: baseScale * pixelRatio * qualityScale })
+      const viewport = page.getViewport({
+        scale: baseScale * pixelRatio * qualityScale,
+      })
 
       const context = canvas.getContext("2d")
       if (!context) return
@@ -413,7 +464,10 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
       try {
         await renderTask.promise
       } catch (error: any) {
-        if (error?.name !== "RenderingCancelledException" && !error?.message?.toLowerCase().includes("rendering cancelled")) {
+        if (
+          error?.name !== "RenderingCancelledException" &&
+          !error?.message?.toLowerCase().includes("rendering cancelled")
+        ) {
           throw error
         }
       } finally {
@@ -422,7 +476,10 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
     }
 
     renderCurrentPage().catch((error) => {
-      if (error?.name === "RenderingCancelledException" || error?.message?.toLowerCase().includes("rendering cancelled")) {
+      if (
+        error?.name === "RenderingCancelledException" ||
+        error?.message?.toLowerCase().includes("rendering cancelled")
+      ) {
         return
       }
       console.error("Failed to render current page", error)
@@ -519,20 +576,32 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null
-      const inEditable = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
+      const inEditable =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
 
       if (e.key === " " && !inEditable) {
         setIsSpacePressed(true)
         e.preventDefault()
       }
 
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z" && !e.shiftKey) {
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        e.key.toLowerCase() === "z" &&
+        !e.shiftKey
+      ) {
         e.preventDefault()
         undo()
         return
       }
 
-      if (e.key === "Delete" || e.key === "Backspace" || e.key.toLowerCase() === "supr") {
+      if (
+        e.key === "Delete" ||
+        e.key === "Backspace" ||
+        e.key.toLowerCase() === "supr"
+      ) {
         if (inEditable) return
         if (selectedElements.length) {
           e.preventDefault()
@@ -566,8 +635,10 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
     const nextZoom = zoom
     if (prevZoom === nextZoom) return
 
-    const centerX = (container.scrollLeft + container.clientWidth / 2) / prevZoom
-    const centerY = (container.scrollTop + container.clientHeight / 2) / prevZoom
+    const centerX =
+      (container.scrollLeft + container.clientWidth / 2) / prevZoom
+    const centerY =
+      (container.scrollTop + container.clientHeight / 2) / prevZoom
 
     const nextScrollLeft = centerX * nextZoom - container.clientWidth / 2
     const nextScrollTop = centerY * nextZoom - container.clientHeight / 2
@@ -579,7 +650,10 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
   }, [zoom])
 
   const handleNextPage = () => {
-    if (state.document && currentPageIndex < state.document.pageOrder.length - 1) {
+    if (
+      state.document &&
+      currentPageIndex < state.document.pageOrder.length - 1
+    ) {
       setCurrentPageId(state.document.pageOrder[currentPageIndex + 1])
     }
   }
@@ -594,8 +668,12 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
     return (
       <div className="flex flex-1 items-center justify-center bg-muted/30">
         <div className="text-center">
-          <p className="text-lg font-medium text-muted-foreground">{copy.canvas.noPdfTitle}</p>
-          <p className="text-sm text-muted-foreground">{copy.canvas.noPdfSubtitle}</p>
+          <p className="text-lg font-medium text-muted-foreground">
+            {copy.canvas.noPdfTitle}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {copy.canvas.noPdfSubtitle}
+          </p>
         </div>
       </div>
     )
@@ -603,18 +681,28 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
 
   const manualPaginationText = state.pagination.enabled
     ? ""
-    : [currentPage.footer?.number, currentPage.footer?.detail].filter((value) => value?.trim()).join(" - ")
+    : [currentPage.footer?.number, currentPage.footer?.detail]
+        .filter((value) => value?.trim())
+        .join(" - ")
 
   return (
     <div className="flex flex-1 flex-col bg-muted/30">
       {/* Toolbar */}
       <div className="flex items-center justify-between border-b border-border bg-card px-4 py-2">
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={handlePrevPage} disabled={currentPageIndex === 0}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handlePrevPage}
+            disabled={currentPageIndex === 0}
+          >
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <span className="text-sm text-muted-foreground">
-            {copy.canvas.pageLabel(currentPageIndex + 1, state.document.pageOrder.length)}
+            {copy.canvas.pageLabel(
+              currentPageIndex + 1,
+              state.document.pageOrder.length,
+            )}
           </span>
           <Button
             size="sm"
@@ -626,11 +714,21 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
           </Button>
         </div>
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={() => setZoom(Math.max(0.5, zoom - 0.1))}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setZoom(Math.max(0.5, zoom - 0.1))}
+          >
             <ZoomOut className="h-4 w-4" />
           </Button>
-          <span className="text-sm text-muted-foreground">{Math.round(zoom * 100)}%</span>
-          <Button size="sm" variant="outline" onClick={() => setZoom(Math.min(2, zoom + 0.1))}>
+          <span className="text-sm text-muted-foreground">
+            {Math.round(zoom * 100)}%
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setZoom(Math.min(2, zoom + 0.1))}
+          >
             <ZoomIn className="h-4 w-4" />
           </Button>
         </div>
@@ -639,7 +737,10 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
       {/* Canvas */}
       <div
         ref={scrollRef}
-        className={cn("flex-1 overflow-auto p-8", isSpacePressed ? "cursor-grab" : "")}
+        className={cn(
+          "flex-1 overflow-auto p-8",
+          isSpacePressed ? "cursor-grab" : "",
+        )}
         onMouseDown={(e) => {
           if (isSpacePressed) {
             e.preventDefault()
@@ -655,7 +756,10 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
           }
         }}
       >
-        <div className="mx-auto" style={{ width: `${canvasSize.width * zoom}px` }}>
+        <div
+          className="mx-auto"
+          style={{ width: `${canvasSize.width * zoom}px` }}
+        >
           <div
             ref={canvasRef}
             className="canvas-layer relative mx-auto bg-white shadow-lg"
@@ -680,12 +784,18 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
               const showFill = highlight.style !== "border"
               const showBorder = highlight.style !== "fill"
               const fillColor = showFill
-                ? hexToRgba(highlight.fillColor ?? highlight.color, highlight.fillOpacity ?? highlight.opacity)
+                ? hexToRgba(
+                    highlight.fillColor ?? highlight.color,
+                    highlight.fillOpacity ?? highlight.opacity,
+                  )
                 : "transparent"
               const borderColor = showBorder
-                ? hexToRgba(highlight.borderColor ?? highlight.color, highlight.borderOpacity ?? highlight.opacity)
+                ? hexToRgba(
+                    highlight.borderColor ?? highlight.color,
+                    highlight.borderOpacity ?? highlight.opacity,
+                  )
                 : "transparent"
-              const borderWidth = showBorder ? highlight.borderWidth ?? 2 : 0
+              const borderWidth = showBorder ? (highlight.borderWidth ?? 2) : 0
 
               return (
                 <div
@@ -693,7 +803,9 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
                   data-element-id={highlight.id}
                   className={cn(
                     "absolute cursor-move transition-shadow group",
-                    selected ? "ring-2 ring-primary" : "hover:ring-2 hover:ring-primary/50",
+                    selected
+                      ? "ring-2 ring-primary"
+                      : "hover:ring-2 hover:ring-primary/50",
                   )}
                   style={{
                     left: highlight.x,
@@ -701,7 +813,9 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
                     width: highlight.width,
                     height: highlight.height,
                     backgroundColor: fillColor,
-                    border: showBorder ? `${borderWidth}px solid ${borderColor}` : "none",
+                    border: showBorder
+                      ? `${borderWidth}px solid ${borderColor}`
+                      : "none",
                   }}
                   onClick={(e) => handleElementClick(e, highlight.id)}
                   onMouseDown={(e) => handleDragStart(e, highlight.id)}
@@ -712,7 +826,9 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
                       style={{
                         transform: "translate(50%, 50%)",
                       }}
-                      onMouseDown={(e) => handleResizeStart(e, highlight.id, highlight)}
+                      onMouseDown={(e) =>
+                        handleResizeStart(e, highlight.id, highlight)
+                      }
                     />
                   )}
                 </div>
@@ -745,7 +861,12 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
                   onClick={(e) => handleElementClick(e, arrow.id)}
                   onMouseDown={(e) => handleDragStart(e, arrow.id)}
                 >
-                  <svg width="100%" height="100%" viewBox={`0 0 ${arrow.width} ${arrow.height}`} className="pointer-events-none">
+                  <svg
+                    width="100%"
+                    height="100%"
+                    viewBox={`0 0 ${arrow.width} ${arrow.height}`}
+                    className="pointer-events-none"
+                  >
                     <line
                       x1={0}
                       y1={midY}
@@ -763,21 +884,21 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
                   {selectedElements.includes(arrow.id) && (
                     <>
                       <div
-                      className="absolute bottom-0 right-0 h-3 w-3 cursor-e-resize bg-primary"
-                      style={{
-                        top: "50%",
-                        bottom: "auto",
-                        transform: "translate(50%, -50%)",
-                      }}
-                      onMouseDown={(e) =>
-                        handleResizeStart(e, arrow.id, {
-                          ...arrow,
-                          height: arrow.height, // keep height locked
-                        })
-                      }
-                    />
-                    <div
-                      className="absolute -top-3 right-0 h-3 w-3 cursor-pointer rounded-full bg-primary"
+                        className="absolute bottom-0 right-0 h-3 w-3 cursor-e-resize bg-primary"
+                        style={{
+                          top: "50%",
+                          bottom: "auto",
+                          transform: "translate(50%, -50%)",
+                        }}
+                        onMouseDown={(e) =>
+                          handleResizeStart(e, arrow.id, {
+                            ...arrow,
+                            height: arrow.height, // keep height locked
+                          })
+                        }
+                      />
+                      <div
+                        className="absolute -top-3 right-0 h-3 w-3 cursor-pointer rounded-full bg-primary"
                         style={{
                           transform: "translate(50%, -50%)",
                         }}
@@ -797,7 +918,9 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
                 data-element-id={text.id}
                 className={cn(
                   "absolute border-2 transition-colors group",
-                  selectedElements.includes(text.id) ? "border-primary" : "border-transparent hover:border-primary/50",
+                  selectedElements.includes(text.id)
+                    ? "border-primary"
+                    : "border-transparent hover:border-primary/50",
                 )}
                 style={{
                   left: text.x,
@@ -828,7 +951,9 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
                   }}
                   onMouseDown={(e) => e.stopPropagation()}
                   onBlur={(e) => {
-                    const newContent = (e.currentTarget.innerText || "").replace(/\r\n/g, "\n")
+                    const newContent = (
+                      e.currentTarget.innerText || ""
+                    ).replace(/\r\n/g, "\n")
                     updateElement(text.id, { content: newContent })
                   }}
                 >
@@ -882,10 +1007,28 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
                   if (!canvasRef.current) return undefined
                   const rect = canvasRef.current.getBoundingClientRect()
                   return {
-                    left: (Math.min(selectionBox.startClientX, selectionBox.currentClientX) - rect.left) / zoom,
-                    top: (Math.min(selectionBox.startClientY, selectionBox.currentClientY) - rect.top) / zoom,
-                    width: Math.abs(selectionBox.currentClientX - selectionBox.startClientX) / zoom,
-                    height: Math.abs(selectionBox.currentClientY - selectionBox.startClientY) / zoom,
+                    left:
+                      (Math.min(
+                        selectionBox.startClientX,
+                        selectionBox.currentClientX,
+                      ) -
+                        rect.left) /
+                      zoom,
+                    top:
+                      (Math.min(
+                        selectionBox.startClientY,
+                        selectionBox.currentClientY,
+                      ) -
+                        rect.top) /
+                      zoom,
+                    width:
+                      Math.abs(
+                        selectionBox.currentClientX - selectionBox.startClientX,
+                      ) / zoom,
+                    height:
+                      Math.abs(
+                        selectionBox.currentClientY - selectionBox.startClientY,
+                      ) / zoom,
                     pointerEvents: "none" as const,
                   }
                 })()}

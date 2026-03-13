@@ -1,8 +1,8 @@
 "use client"
-import { TopBar } from "./editor/top-bar"
-import { LeftPanel } from "./editor/left-panel"
-import { CenterCanvas } from "./editor/center-canvas"
-import { RightPanel } from "./editor/right-panel"
+import { TopBar } from "./top-bar"
+import { LeftPanel } from "./left-panel"
+import { CenterCanvas } from "./center-canvas"
+import { RightPanel } from "./right-panel"
 import { usePDFState } from "@/hooks/use-pdf-state"
 
 export function PDFEditor() {

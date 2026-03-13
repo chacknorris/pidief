@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useCallback, useRef, useEffect } from "react"
+import { getPdfJs } from "../lib/pdfjs"
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   if (typeof Buffer !== "undefined") {
@@ -105,7 +106,13 @@ export interface DocumentState {
   originalPdfSources: ArrayBuffer[]
   pageMetrics: Record<
     string,
-    { width: number; height: number; pageIndex: number; sourceIndex: number; transform?: number[] }
+    {
+      width: number
+      height: number
+      pageIndex: number
+      sourceIndex: number
+      transform?: number[]
+    }
   >
 }
 
@@ -133,7 +140,10 @@ export interface PDFState {
   deletePage: (pageId: string) => void
   reorderPages: (draggedId: string, targetId: string) => void
   updatePagination: (updates: Partial<DocumentState["pagination"]>) => void
-  updatePageFooter: (pageId: string, updates: Partial<PageData["footer"]>) => void
+  updatePageFooter: (
+    pageId: string,
+    updates: Partial<PageData["footer"]>,
+  ) => void
   updateLanguage: (lang: DocumentState["language"]) => void
   undo: () => void
 }
@@ -157,8 +167,12 @@ const initialState: DocumentState = {
 export function serializeDocumentState(state: DocumentState): string {
   const serializableState = {
     ...state,
-    originalPdfBytes: state.originalPdfBytes ? arrayBufferToBase64(state.originalPdfBytes) : null,
-    originalPdfSources: state.originalPdfSources.map((src) => arrayBufferToBase64(src)),
+    originalPdfBytes: state.originalPdfBytes
+      ? arrayBufferToBase64(state.originalPdfBytes)
+      : null,
+    originalPdfSources: state.originalPdfSources.map((src) =>
+      arrayBufferToBase64(src),
+    ),
   }
   return JSON.stringify(serializableState, null, 2)
 }
@@ -167,19 +181,25 @@ export function deserializeDocumentState(
   json: string,
 ): { state: DocumentState; currentPageId: string | null } | null {
   try {
-    const loadedState = JSON.parse(json)
+    const loadedState = JSON.parse(json) as Record<string, any>
 
     const decodedSources = Array.isArray(loadedState.originalPdfSources)
       ? loadedState.originalPdfSources
-          .map((src: unknown) => (typeof src === "string" ? base64ToArrayBuffer(src) : null))
+          .map((src: unknown) =>
+            typeof src === "string" ? base64ToArrayBuffer(src) : null,
+          )
           .filter((src): src is ArrayBuffer => Boolean(src))
       : []
 
     const decodedOriginalPdf =
-      typeof loadedState.originalPdfBytes === "string" ? base64ToArrayBuffer(loadedState.originalPdfBytes) : null
+      typeof loadedState.originalPdfBytes === "string"
+        ? base64ToArrayBuffer(loadedState.originalPdfBytes)
+        : null
 
     const nextPageMetrics =
-      loadedState.pageMetrics && typeof loadedState.pageMetrics === "object" ? loadedState.pageMetrics : {}
+      loadedState.pageMetrics && typeof loadedState.pageMetrics === "object"
+        ? loadedState.pageMetrics
+        : {}
 
     const nextCurrentPageId = loadedState.document?.pageOrder?.[0] ?? null
 
@@ -187,43 +207,76 @@ export function deserializeDocumentState(
       loadedState.coordinateSpace === "pdf" ? "pdf" : "legacy-612"
 
     const legacyManualNumber =
-      typeof loadedState.pagination?.manualNumber === "string" ? loadedState.pagination.manualNumber : ""
+      typeof loadedState.pagination?.manualNumber === "string"
+        ? loadedState.pagination.manualNumber
+        : ""
     const legacyManualDetail =
-      typeof loadedState.pagination?.manualDetail === "string" ? loadedState.pagination.manualDetail : ""
+      typeof loadedState.pagination?.manualDetail === "string"
+        ? loadedState.pagination.manualDetail
+        : ""
 
     const normalizedPages: Record<string, PageData> = {}
     if (loadedState.pages && typeof loadedState.pages === "object") {
-      Object.entries(loadedState.pages).forEach(([id, page]) => {
-        const footerSource = page.footer && typeof page.footer === "object" ? page.footer : {}
-        const footer = {
-          number: typeof footerSource.number === "string" ? footerSource.number : legacyManualNumber,
-          detail: typeof footerSource.detail === "string" ? footerSource.detail : legacyManualDetail,
-        }
-        normalizedPages[id] = {
-          texts: page.texts || [],
-          highlights: (page.highlights || []).map((highlight: any) => ({
-            ...highlight,
-            style: highlight.style === "border" || highlight.style === "both" ? highlight.style : "fill",
-            borderWidth: typeof highlight.borderWidth === "number" ? highlight.borderWidth : 2,
-            fillColor: typeof highlight.fillColor === "string" ? highlight.fillColor : highlight.color ?? "#ffff00",
-            fillOpacity: typeof highlight.fillOpacity === "number" ? highlight.fillOpacity : highlight.opacity ?? 0.3,
-            borderColor: typeof highlight.borderColor === "string" ? highlight.borderColor : highlight.color ?? "#ff0000",
-            borderOpacity: typeof highlight.borderOpacity === "number" ? highlight.borderOpacity : 1,
-          })),
-          arrows: (page.arrows || []).map((ar: any) => ({
-            ...ar,
-            angle: typeof ar.angle === "number" ? ar.angle : 0,
-          })),
-          footer,
-        }
-      })
+      Object.entries(loadedState.pages as Record<string, any>).forEach(
+        ([id, page]) => {
+          const footerSource =
+            page.footer && typeof page.footer === "object" ? page.footer : {}
+          const footer = {
+            number:
+              typeof footerSource.number === "string"
+                ? footerSource.number
+                : legacyManualNumber,
+            detail:
+              typeof footerSource.detail === "string"
+                ? footerSource.detail
+                : legacyManualDetail,
+          }
+          normalizedPages[id] = {
+            texts: page.texts || [],
+            highlights: (page.highlights || []).map((highlight: any) => ({
+              ...highlight,
+              style:
+                highlight.style === "border" || highlight.style === "both"
+                  ? highlight.style
+                  : "fill",
+              borderWidth:
+                typeof highlight.borderWidth === "number"
+                  ? highlight.borderWidth
+                  : 2,
+              fillColor:
+                typeof highlight.fillColor === "string"
+                  ? highlight.fillColor
+                  : (highlight.color ?? "#ffff00"),
+              fillOpacity:
+                typeof highlight.fillOpacity === "number"
+                  ? highlight.fillOpacity
+                  : (highlight.opacity ?? 0.3),
+              borderColor:
+                typeof highlight.borderColor === "string"
+                  ? highlight.borderColor
+                  : (highlight.color ?? "#ff0000"),
+              borderOpacity:
+                typeof highlight.borderOpacity === "number"
+                  ? highlight.borderOpacity
+                  : 1,
+            })),
+            arrows: (page.arrows || []).map((ar: any) => ({
+              ...ar,
+              angle: typeof ar.angle === "number" ? ar.angle : 0,
+            })),
+            footer,
+          }
+        },
+      )
     }
 
     const pageIds = Object.keys(normalizedPages)
     const canMigrateLegacy =
       coordinateSpace === "legacy-612" &&
       pageIds.length > 0 &&
-      pageIds.every((id) => nextPageMetrics[id]?.width && nextPageMetrics[id]?.height)
+      pageIds.every(
+        (id) => nextPageMetrics[id]?.width && nextPageMetrics[id]?.height,
+      )
 
     const migratePage = (page: PageData, scale: number): PageData => ({
       texts: page.texts.map((text) => ({
@@ -271,9 +324,27 @@ export function deserializeDocumentState(
       backgroundBox: false,
       ...loadedState.pagination,
     }
+    const restoredDocument =
+      loadedState.document &&
+      typeof loadedState.document === "object" &&
+      Array.isArray(loadedState.document.pageOrder)
+        ? {
+            name:
+              typeof loadedState.document.name === "string"
+                ? loadedState.document.name
+                : "document.pdf",
+            createdAt:
+              typeof loadedState.document.createdAt === "string"
+                ? loadedState.document.createdAt
+                : new Date().toISOString(),
+            pageOrder: loadedState.document.pageOrder.filter(
+              (pageId: unknown): pageId is string => typeof pageId === "string",
+            ),
+          }
+        : null
 
     const restoredState: DocumentState = {
-      ...loadedState,
+      document: restoredDocument,
       pages: migratedPages,
       pagination: {
         ...restoredPagination,
@@ -325,111 +396,126 @@ export function usePDFState(): PDFState {
   const historyRef = useRef<DocumentState[]>([])
 
   const pushHistory = useCallback((snapshot: DocumentState) => {
-    historyRef.current = [...historyRef.current.slice(-19), cloneDocumentState(snapshot)]
+    historyRef.current = [
+      ...historyRef.current.slice(-19),
+      cloneDocumentState(snapshot),
+    ]
   }, [])
 
-  const toggleElementSelection = useCallback((id: string, additive: boolean) => {
-    setSelectedElements((prev) => {
-      if (additive) {
-        return prev.includes(id) ? prev.filter((el) => el !== id) : [...prev, id]
-      }
-      return [id]
-    })
-  }, [])
+  const toggleElementSelection = useCallback(
+    (id: string, additive: boolean) => {
+      setSelectedElements((prev) => {
+        if (additive) {
+          return prev.includes(id)
+            ? prev.filter((el) => el !== id)
+            : [...prev, id]
+        }
+        return [id]
+      })
+    },
+    [],
+  )
 
   const clearSelection = useCallback(() => setSelectedElements([]), [])
 
-  const loadPDF = useCallback(async (file: File) => {
-    try {
-      // Read the file as ArrayBuffer
-      const arrayBuffer = await file.arrayBuffer()
-      // Keep a stable copy to avoid buffer detachment when sending data to pdf.js workers
-      const originalPdfBytes = arrayBuffer.slice(0)
+  const loadPDF = useCallback(
+    async (file: File) => {
+      try {
+        // Read the file as ArrayBuffer
+        const arrayBuffer = await file.arrayBuffer()
+        // Keep a stable copy to avoid buffer detachment when sending data to pdf.js workers
+        const originalPdfBytes = arrayBuffer.slice(0)
 
-      // Dynamically import pdfjs-dist to avoid SSR issues
-      const pdfjsLib = await import("pdfjs-dist")
+        // Dynamically import PDF.js and configure its worker once on the client.
+        const pdfjsLib = await getPdfJs()
 
-      // Configure PDF.js worker
-      if (typeof window !== "undefined") {
-        const workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString()
-        pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc
+        // Load PDF with pdfjs-dist
+        // Use a clone for pdf.js to avoid detaching the stored buffer
+        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer.slice(0) })
+        const pdfDocument = await loadingTask.promise
+
+        const pageCount = pdfDocument.numPages
+        const pageOrder: string[] = []
+        const pages: Record<string, PageData> = {}
+        const pageMetrics: Record<
+          string,
+          {
+            width: number
+            height: number
+            pageIndex: number
+            sourceIndex: number
+            transform?: number[]
+          }
+        > = {}
+
+        // Calculate source index to keep track of which PDF each page belongs to
+        const sourceIndex = state.originalPdfSources.length
+
+        // Extract page metrics
+        for (let i = 1; i <= pageCount; i++) {
+          const page = await pdfDocument.getPage(i)
+          const viewport = page.getViewport({ scale: 1.0 })
+
+          const pageId = `page-${Date.now()}-${i}`
+          pageOrder.push(pageId)
+          pages[pageId] = {
+            texts: [],
+            highlights: [],
+            arrows: [],
+            footer: {
+              number: "",
+              detail: "",
+            },
+          }
+          pageMetrics[pageId] = {
+            width: viewport.width,
+            height: viewport.height,
+            pageIndex: i - 1, // zero-based index to reference the original PDF page
+            sourceIndex,
+            transform: Array.from(viewport.transform || []),
+          }
+        }
+
+        setState((prev) => {
+          pushHistory(prev)
+          const isFirst = !prev.document
+          const mergedPageOrder = isFirst
+            ? pageOrder
+            : [...prev.document!.pageOrder, ...pageOrder]
+          const mergedPages = isFirst ? pages : { ...prev.pages, ...pages }
+          const mergedMetrics = isFirst
+            ? pageMetrics
+            : { ...prev.pageMetrics, ...pageMetrics }
+
+          return {
+            document: isFirst
+              ? {
+                  name: file.name,
+                  createdAt: new Date().toISOString(),
+                  pageOrder: mergedPageOrder,
+                }
+              : {
+                  ...prev.document!,
+                  pageOrder: mergedPageOrder,
+                },
+            pages: mergedPages,
+            pagination: prev.pagination,
+            language: prev.language,
+            coordinateSpace: prev.coordinateSpace ?? "pdf",
+            // Keep legacy field for compatibility (first PDF only)
+            originalPdfBytes: prev.originalPdfBytes ?? originalPdfBytes,
+            originalPdfSources: [...prev.originalPdfSources, originalPdfBytes],
+            pageMetrics: mergedMetrics,
+          }
+        })
+        setCurrentPageId((prev) => prev ?? pageOrder[0])
+      } catch (error) {
+        console.error("Failed to load PDF:", error)
+        alert("Failed to load PDF. Please try again.")
       }
-
-      // Load PDF with pdfjs-dist
-      // Use a clone for pdf.js to avoid detaching the stored buffer
-      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer.slice(0) })
-      const pdfDocument = await loadingTask.promise
-
-      const pageCount = pdfDocument.numPages
-      const pageOrder: string[] = []
-      const pages: Record<string, PageData> = {}
-      const pageMetrics: Record<
-        string,
-        { width: number; height: number; pageIndex: number; sourceIndex: number; transform?: number[] }
-      > = {}
-
-      // Calculate source index to keep track of which PDF each page belongs to
-      const sourceIndex = state.originalPdfSources.length
-
-      // Extract page metrics
-      for (let i = 1; i <= pageCount; i++) {
-        const page = await pdfDocument.getPage(i)
-        const viewport = page.getViewport({ scale: 1.0 })
-
-        const pageId = `page-${Date.now()}-${i}`
-        pageOrder.push(pageId)
-        pages[pageId] = {
-          texts: [],
-          highlights: [],
-          arrows: [],
-          footer: {
-            number: "",
-            detail: "",
-          },
-        }
-        pageMetrics[pageId] = {
-          width: viewport.width,
-          height: viewport.height,
-          pageIndex: i - 1, // zero-based index to reference the original PDF page
-          sourceIndex,
-          transform: Array.from(viewport.transform || []),
-        }
-      }
-
-      setState((prev) => {
-        pushHistory(prev)
-        const isFirst = !prev.document
-        const mergedPageOrder = isFirst ? pageOrder : [...prev.document!.pageOrder, ...pageOrder]
-        const mergedPages = isFirst ? pages : { ...prev.pages, ...pages }
-        const mergedMetrics = isFirst ? pageMetrics : { ...prev.pageMetrics, ...pageMetrics }
-
-        return {
-          document: isFirst
-            ? {
-                name: file.name,
-                createdAt: new Date().toISOString(),
-                pageOrder: mergedPageOrder,
-              }
-            : {
-                ...prev.document!,
-                pageOrder: mergedPageOrder,
-              },
-          pages: mergedPages,
-          pagination: prev.pagination,
-          language: prev.language,
-          coordinateSpace: prev.coordinateSpace ?? "pdf",
-          // Keep legacy field for compatibility (first PDF only)
-          originalPdfBytes: prev.originalPdfBytes ?? originalPdfBytes,
-          originalPdfSources: [...prev.originalPdfSources, originalPdfBytes],
-          pageMetrics: mergedMetrics,
-        }
-      })
-      setCurrentPageId((prev) => prev ?? pageOrder[0])
-    } catch (error) {
-      console.error("Failed to load PDF:", error)
-      alert("Failed to load PDF. Please try again.")
-    }
-  }, [state.originalPdfSources.length])
+    },
+    [state.originalPdfSources.length],
+  )
 
   const saveState = useCallback(() => serializeDocumentState(state), [state])
 
@@ -445,7 +531,10 @@ export function usePDFState(): PDFState {
 
   useEffect(() => {
     const browserLang =
-      typeof navigator !== "undefined" && navigator.language?.toLowerCase().startsWith("es") ? "es" : "en"
+      typeof navigator !== "undefined" &&
+      navigator.language?.toLowerCase().startsWith("es")
+        ? "es"
+        : "en"
     setState((prev) => {
       if (prev.language !== "en" || prev.document) return prev
       return { ...prev, language: browserLang }
@@ -527,7 +616,10 @@ export function usePDFState(): PDFState {
           ...prev.pages,
           [currentPageId]: {
             ...prev.pages[currentPageId],
-            highlights: [...(prev.pages[currentPageId]?.highlights || []), newHighlight],
+            highlights: [
+              ...(prev.pages[currentPageId]?.highlights || []),
+              newHighlight,
+            ],
           },
         },
       }
@@ -572,15 +664,26 @@ export function usePDFState(): PDFState {
 
       setState((prev) => {
         pushHistory(prev)
-        const page = prev.pages[currentPageId] ?? { texts: [], highlights: [], arrows: [], footer: { number: "", detail: "" } }
+        const page = prev.pages[currentPageId] ?? {
+          texts: [],
+          highlights: [],
+          arrows: [],
+          footer: { number: "", detail: "" },
+        }
         return {
           ...prev,
           pages: {
             ...prev.pages,
             [currentPageId]: {
-              texts: page.texts.map((el) => (updates[el.id] ? { ...el, ...updates[el.id] } : el)),
-              highlights: page.highlights.map((el) => (updates[el.id] ? { ...el, ...updates[el.id] } : el)),
-              arrows: page.arrows.map((el) => (updates[el.id] ? { ...el, ...updates[el.id] } : el)),
+              texts: page.texts.map((el) =>
+                updates[el.id] ? { ...el, ...updates[el.id] } : el,
+              ),
+              highlights: page.highlights.map((el) =>
+                updates[el.id] ? { ...el, ...updates[el.id] } : el,
+              ),
+              arrows: page.arrows.map((el) =>
+                updates[el.id] ? { ...el, ...updates[el.id] } : el,
+              ),
               footer: page.footer,
             },
           },
@@ -604,7 +707,12 @@ export function usePDFState(): PDFState {
 
       setState((prev) => {
         pushHistory(prev)
-        const page = prev.pages[currentPageId] ?? { texts: [], highlights: [], arrows: [], footer: { number: "", detail: "" } }
+        const page = prev.pages[currentPageId] ?? {
+          texts: [],
+          highlights: [],
+          arrows: [],
+          footer: { number: "", detail: "" },
+        }
         return {
           ...prev,
           pages: {
@@ -629,7 +737,12 @@ export function usePDFState(): PDFState {
 
       setState((prev) => {
         pushHistory(prev)
-        const page = prev.pages[currentPageId] ?? { texts: [], highlights: [], arrows: [], footer: { number: "", detail: "" } }
+        const page = prev.pages[currentPageId] ?? {
+          texts: [],
+          highlights: [],
+          arrows: [],
+          footer: { number: "", detail: "" },
+        }
         return {
           ...prev,
           pages: {
@@ -685,7 +798,9 @@ export function usePDFState(): PDFState {
         if (!prev.document || prev.document.pageOrder.length === 1) return prev
 
         pushHistory(prev)
-        const newPageOrder = prev.document.pageOrder.filter((id) => id !== pageId)
+        const newPageOrder = prev.document.pageOrder.filter(
+          (id) => id !== pageId,
+        )
         const newPages = { ...prev.pages }
         delete newPages[pageId]
 
@@ -737,18 +852,21 @@ export function usePDFState(): PDFState {
     })
   }, [])
 
-  const updatePagination = useCallback((updates: Partial<DocumentState["pagination"]>) => {
-    setState((prev) => {
-      pushHistory(prev)
-      return {
-        ...prev,
-        pagination: {
-          ...prev.pagination,
-          ...updates,
-        },
-      }
-    })
-  }, [pushHistory])
+  const updatePagination = useCallback(
+    (updates: Partial<DocumentState["pagination"]>) => {
+      setState((prev) => {
+        pushHistory(prev)
+        return {
+          ...prev,
+          pagination: {
+            ...prev.pagination,
+            ...updates,
+          },
+        }
+      })
+    },
+    [pushHistory],
+  )
 
   const updatePageFooter = useCallback(
     (pageId: string, updates: Partial<PageData["footer"]>) => {
@@ -765,8 +883,6 @@ export function usePDFState(): PDFState {
             [pageId]: {
               ...page,
               footer: {
-                number: "",
-                detail: "",
                 ...page.footer,
                 ...updates,
               },
@@ -792,12 +908,23 @@ export function usePDFState(): PDFState {
       const pdfBytes = await exportFinalPDF(state.originalPdfSources, state)
 
       // Ask for filename, fallback to original name with suffix
-      const defaultName = state.document.name.replace(/\.pdf$/i, "") + "-edited.pdf"
-      const desiredName = typeof window !== "undefined" ? window.prompt("Nombre del archivo a exportar:", defaultName) : defaultName
-      const fileName = desiredName && desiredName.trim() ? desiredName.trim().replace(/\.pdf$/i, "") + ".pdf" : defaultName
+      const defaultName =
+        state.document.name.replace(/\.pdf$/i, "") + "-edited.pdf"
+      const desiredName =
+        typeof window !== "undefined"
+          ? window.prompt("Nombre del archivo a exportar:", defaultName)
+          : defaultName
+      const fileName =
+        desiredName && desiredName.trim()
+          ? desiredName.trim().replace(/\.pdf$/i, "") + ".pdf"
+          : defaultName
 
       // Download the PDF
-      const blob = new Blob([pdfBytes], { type: "application/pdf" })
+      const downloadablePdf = pdfBytes.buffer.slice(
+        pdfBytes.byteOffset,
+        pdfBytes.byteOffset + pdfBytes.byteLength,
+      ) as ArrayBuffer
+      const blob = new Blob([downloadablePdf], { type: "application/pdf" })
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
@@ -815,9 +942,11 @@ export function usePDFState(): PDFState {
     if (!snapshot) return
     setState(snapshot)
     const nextPage =
-      snapshot.document && currentPageId && snapshot.document.pageOrder.includes(currentPageId)
+      snapshot.document &&
+      currentPageId &&
+      snapshot.document.pageOrder.includes(currentPageId)
         ? currentPageId
-        : snapshot.document?.pageOrder[0] ?? null
+        : (snapshot.document?.pageOrder[0] ?? null)
     setCurrentPageId(nextPage)
     setSelectedElements([])
   }, [currentPageId])

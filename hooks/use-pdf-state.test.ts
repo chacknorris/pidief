@@ -2,11 +2,17 @@
 
 import { describe, expect, it } from "vitest"
 import { PDFDocument } from "pdf-lib"
-import { deserializeDocumentState, serializeDocumentState } from "./use-pdf-state"
+import {
+  deserializeDocumentState,
+  serializeDocumentState,
+} from "./use-pdf-state"
 import type { DocumentState } from "./use-pdf-state"
 
 function toArrayBuffer(uint8: Uint8Array): ArrayBuffer {
-  return uint8.buffer.slice(uint8.byteOffset, uint8.byteOffset + uint8.byteLength)
+  return uint8.buffer.slice(
+    uint8.byteOffset,
+    uint8.byteOffset + uint8.byteLength,
+  ) as ArrayBuffer
 }
 
 describe("use-pdf-state serialization", () => {
@@ -23,7 +29,12 @@ describe("use-pdf-state serialization", () => {
         pageOrder: ["page-1"],
       },
       pages: {
-        "page-1": { texts: [], highlights: [], arrows: [], footer: { number: "", detail: "" } },
+        "page-1": {
+          texts: [],
+          highlights: [],
+          arrows: [],
+          footer: { number: "", detail: "" },
+        },
       },
       pagination: {
         enabled: false,

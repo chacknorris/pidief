@@ -6,6 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { Copy, Trash2 } from "lucide-react"
 import type { PDFState } from "@/hooks/use-pdf-state"
+import { getPdfJs } from "@/lib/pdfjs"
 import { cn } from "@/lib/utils"
 import { getCopy } from "@/lib/i18n"
 
@@ -14,7 +15,14 @@ interface LeftPanelProps {
 }
 
 export function LeftPanel({ pdfState }: LeftPanelProps) {
-  const { state, currentPageId, setCurrentPageId, duplicatePage, deletePage, reorderPages } = pdfState
+  const {
+    state,
+    currentPageId,
+    setCurrentPageId,
+    duplicatePage,
+    deletePage,
+    reorderPages,
+  } = pdfState
   const copy = getCopy(state.language)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
   const pdfDocRef = useRef<Map<number, any> | null>(new Map())
@@ -31,7 +39,9 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
         pdfDocRef.current?.forEach((doc) => {
           try {
             doc.destroy?.()
-          } catch {}
+          } catch (error) {
+            console.warn("Failed to destroy cached PDF document", error)
+          }
         })
         pdfDocRef.current?.clear()
         setPdfDocVersion((v) => v + 1)
@@ -40,17 +50,15 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
 
       let pdfjsLib: any
       try {
-        pdfjsLib = await import("pdfjs-dist")
+        pdfjsLib = await getPdfJs()
       } catch (error: any) {
-        if (error?.name === "RenderingCancelledException" || error?.message?.toLowerCase().includes("rendering cancelled")) {
+        if (
+          error?.name === "RenderingCancelledException" ||
+          error?.message?.toLowerCase().includes("rendering cancelled")
+        ) {
           return
         }
         throw error
-      }
-
-      if (typeof window !== "undefined") {
-        const workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString()
-        pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc
       }
 
       await Promise.all(
@@ -128,14 +136,18 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
     setDragOverId(null)
   }
 
+  const pageOrder = state.document.pageOrder
+
   return (
     <div className="flex min-h-0 w-64 flex-col border-r border-border bg-sidebar">
       <div className="border-b border-border p-3">
-        <h2 className="text-sm font-semibold text-sidebar-foreground">{copy.leftPanel.pages}</h2>
+        <h2 className="text-sm font-semibold text-sidebar-foreground">
+          {copy.leftPanel.pages}
+        </h2>
       </div>
       <ScrollArea className="flex-1 min-h-0">
         <div className="space-y-2 p-3">
-          {state.document.pageOrder.map((pageId, index) => (
+          {pageOrder.map((pageId, index) => (
             <div
               key={pageId}
               draggable
@@ -152,12 +164,14 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
               onClick={() => setCurrentPageId(pageId)}
             >
               <div className="mb-1 flex items-center justify-between">
-                <span className="text-xs font-medium text-card-foreground">Page {index + 1}</span>
+                <span className="text-xs font-medium text-card-foreground">
+                  Page {index + 1}
+                </span>
                 <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-6 w-6 p-0"
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 w-6 p-0"
                     onClick={(e) => {
                       e.stopPropagation()
                       duplicatePage(pageId)
@@ -173,7 +187,7 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
                       e.stopPropagation()
                       deletePage(pageId)
                     }}
-                    disabled={state.document.pageOrder.length === 1}
+                    disabled={pageOrder.length === 1}
                   >
                     <Trash2 className="h-3 w-3" />
                   </Button>
@@ -195,12 +209,22 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
 
 interface PageThumbnailProps {
   pageOrderIndex: number
-  metrics?: { width: number; height: number; pageIndex: number; sourceIndex: number }
+  metrics?: {
+    width: number
+    height: number
+    pageIndex: number
+    sourceIndex: number
+  }
   pdfDocRef: React.MutableRefObject<Map<number, any> | null>
   pdfDocVersion: number
 }
 
-function PageThumbnail({ metrics, pageOrderIndex, pdfDocRef, pdfDocVersion }: PageThumbnailProps) {
+function PageThumbnail({
+  metrics,
+  pageOrderIndex,
+  pdfDocRef,
+  pdfDocVersion,
+}: PageThumbnailProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const renderTaskRef = useRef<any>(null)
 
@@ -218,7 +242,9 @@ function PageThumbnail({ metrics, pageOrderIndex, pdfDocRef, pdfDocVersion }: Pa
 
       const targetWidth = 140
       const targetHeight =
-        metrics?.width && metrics?.height ? (metrics.height / metrics.width) * targetWidth : 180
+        metrics?.width && metrics?.height
+          ? (metrics.height / metrics.width) * targetWidth
+          : 180
       const sourceWidth = metrics?.width ?? page.view?.[2] ?? targetWidth
       const scale = targetWidth / sourceWidth
       const viewport = page.getViewport({ scale })
@@ -245,7 +271,10 @@ function PageThumbnail({ metrics, pageOrderIndex, pdfDocRef, pdfDocVersion }: Pa
       try {
         await renderTask.promise
       } catch (error: any) {
-        if (error?.name !== "RenderingCancelledException" && !error?.message?.toLowerCase().includes("rendering cancelled")) {
+        if (
+          error?.name !== "RenderingCancelledException" &&
+          !error?.message?.toLowerCase().includes("rendering cancelled")
+        ) {
           throw error
         }
       } finally {
@@ -268,5 +297,10 @@ function PageThumbnail({ metrics, pageOrderIndex, pdfDocRef, pdfDocVersion }: Pa
     }
   }, [metrics, pageOrderIndex, pdfDocRef, pdfDocVersion])
 
-  return <canvas ref={canvasRef} className="w-full rounded border border-border bg-muted" />
+  return (
+    <canvas
+      ref={canvasRef}
+      className="w-full rounded border border-border bg-muted"
+    />
+  )
 }

@@ -63,11 +63,11 @@ const copy: Record<Lang, Copy> = {
   en: {
     topBar: {
       import: "Import PDF",
-    export: "Export PDF",
-    menu: "Menu",
-    language: "Language",
-    savePrompt: "File name",
-  },
+      export: "Export PDF",
+      menu: "Menu",
+      language: "Language",
+      savePrompt: "File name",
+    },
     leftPanel: {
       pages: "Pages",
       empty: "No PDF loaded",
@@ -85,8 +85,10 @@ const copy: Record<Lang, Copy> = {
       text: (placing) => (placing ? "Click to place" : "Text"),
       highlight: "Highlight",
       arrow: "Arrow",
-      selected: (count) => (count > 1 ? `Selected (${count})` : "Selected Element"),
-      multiHint: "Shift or Cmd/Ctrl + click to add/remove elements and move them together.",
+      selected: (count) =>
+        count > 1 ? `Selected (${count})` : "Selected Element",
+      multiHint:
+        "Shift or Cmd/Ctrl + click to add/remove elements and move them together.",
       fontSize: "Font Size",
       color: "Color",
       bold: "Bold",
@@ -97,9 +99,11 @@ const copy: Record<Lang, Copy> = {
       highlightStyleBorder: "Border",
       highlightStyleBoth: "Both",
       highlightFillColor: "Fill Color",
-      highlightFillOpacity: (value) => `Fill Opacity: ${Math.round(value * 100)}%`,
+      highlightFillOpacity: (value) =>
+        `Fill Opacity: ${Math.round(value * 100)}%`,
       highlightBorderColor: "Border Color",
-      highlightBorderOpacity: (value) => `Border Opacity: ${Math.round(value * 100)}%`,
+      highlightBorderOpacity: (value) =>
+        `Border Opacity: ${Math.round(value * 100)}%`,
       highlightBorderWidth: "Border Width",
       width: "Width",
       height: "Height",
@@ -121,11 +125,11 @@ const copy: Record<Lang, Copy> = {
   es: {
     topBar: {
       import: "Importar PDF",
-    export: "Exportar PDF",
-    menu: "Menú",
-    language: "Idioma",
-    savePrompt: "Nombre del archivo",
-  },
+      export: "Exportar PDF",
+      menu: "Menú",
+      language: "Idioma",
+      savePrompt: "Nombre del archivo",
+    },
     leftPanel: {
       pages: "Páginas",
       empty: "No hay PDF cargado",
@@ -143,8 +147,10 @@ const copy: Record<Lang, Copy> = {
       text: (placing) => (placing ? "Click para colocar" : "Texto"),
       highlight: "Resaltado",
       arrow: "Flecha",
-      selected: (count) => (count > 1 ? `Seleccionados (${count})` : "Elemento seleccionado"),
-      multiHint: "Shift o Cmd/Ctrl + click para sumar/quitar elementos y moverlos en bloque.",
+      selected: (count) =>
+        count > 1 ? `Seleccionados (${count})` : "Elemento seleccionado",
+      multiHint:
+        "Shift o Cmd/Ctrl + click para sumar/quitar elementos y moverlos en bloque.",
       fontSize: "Tamaño de fuente",
       color: "Color",
       bold: "Negrita",
@@ -155,9 +161,11 @@ const copy: Record<Lang, Copy> = {
       highlightStyleBorder: "Borde",
       highlightStyleBoth: "Ambos",
       highlightFillColor: "Color de relleno",
-      highlightFillOpacity: (value) => `Opacidad del relleno: ${Math.round(value * 100)}%`,
+      highlightFillOpacity: (value) =>
+        `Opacidad del relleno: ${Math.round(value * 100)}%`,
       highlightBorderColor: "Color del borde",
-      highlightBorderOpacity: (value) => `Opacidad del borde: ${Math.round(value * 100)}%`,
+      highlightBorderOpacity: (value) =>
+        `Opacidad del borde: ${Math.round(value * 100)}%`,
       highlightBorderWidth: "Grosor del borde",
       width: "Ancho",
       height: "Alto",

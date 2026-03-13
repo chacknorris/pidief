@@ -2,20 +2,38 @@
 
 import { describe, expect, it } from "vitest"
 import { PDFDocument } from "pdf-lib"
-import { canvasToPdfY, denormalizeCoordinates, exportFinalPDF, normalizeCoordinates } from "./pdf-export"
+import {
+  canvasToPdfY,
+  denormalizeCoordinates,
+  exportFinalPDF,
+  normalizeCoordinates,
+} from "./pdf-export"
 import type { DocumentState } from "../hooks/use-pdf-state"
 
 function toArrayBuffer(uint8: Uint8Array): ArrayBuffer {
-  return uint8.buffer.slice(uint8.byteOffset, uint8.byteOffset + uint8.byteLength)
+  return uint8.buffer.slice(
+    uint8.byteOffset,
+    uint8.byteOffset + uint8.byteLength,
+  ) as ArrayBuffer
 }
 
 describe("pdf-export helpers", () => {
   it("normalizes and denormalizes coordinates reversibly", () => {
-    const { normalizedX, normalizedY } = normalizeCoordinates(306, 396, 612, 792)
+    const { normalizedX, normalizedY } = normalizeCoordinates(
+      306,
+      396,
+      612,
+      792,
+    )
     expect(normalizedX).toBeCloseTo(0.5)
     expect(normalizedY).toBeCloseTo(0.5)
 
-    const { absoluteX, absoluteY } = denormalizeCoordinates(normalizedX, normalizedY, 612, 792)
+    const { absoluteX, absoluteY } = denormalizeCoordinates(
+      normalizedX,
+      normalizedY,
+      612,
+      792,
+    )
     expect(absoluteX).toBeCloseTo(306)
     expect(absoluteY).toBeCloseTo(396)
   })
@@ -40,8 +58,18 @@ describe("exportFinalPDF", () => {
         pageOrder: ["page-b", "page-a"], // reverse order
       },
       pages: {
-        "page-a": { texts: [], highlights: [], arrows: [], footer: { number: "", detail: "" } },
-        "page-b": { texts: [], highlights: [], arrows: [], footer: { number: "", detail: "" } },
+        "page-a": {
+          texts: [],
+          highlights: [],
+          arrows: [],
+          footer: { number: "", detail: "" },
+        },
+        "page-b": {
+          texts: [],
+          highlights: [],
+          arrows: [],
+          footer: { number: "", detail: "" },
+        },
       },
       pagination: {
         enabled: false,
@@ -59,7 +87,10 @@ describe("exportFinalPDF", () => {
       },
     }
 
-    const exportedBytes = await exportFinalPDF([state.originalPdfSources[0]], state)
+    const exportedBytes = await exportFinalPDF(
+      [state.originalPdfSources[0]],
+      state,
+    )
     const exported = await PDFDocument.load(exportedBytes)
     const pages = exported.getPages()
 
@@ -92,8 +123,18 @@ describe("exportFinalPDF", () => {
         pageOrder: ["page-a", "page-b"],
       },
       pages: {
-        "page-a": { texts: [], highlights: [], arrows: [], footer: { number: "", detail: "" } },
-        "page-b": { texts: [], highlights: [], arrows: [], footer: { number: "", detail: "" } },
+        "page-a": {
+          texts: [],
+          highlights: [],
+          arrows: [],
+          footer: { number: "", detail: "" },
+        },
+        "page-b": {
+          texts: [],
+          highlights: [],
+          arrows: [],
+          footer: { number: "", detail: "" },
+        },
       },
       pagination: {
         enabled: false,

@@ -16,8 +16,15 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/",
   },
-  generator: "v0.app",
-  keywords: ["PDF editor", "PDF annotation", "PDF markup", "online PDF", "client-side PDF"],
+  generator: "Next.js",
+  keywords: [
+    "PDF merge",
+    "PDF annotation",
+    "privacy-first PDF",
+    "client-side PDF",
+    "browser PDF editor",
+    "local-first tools",
+  ],
   robots: {
     index: true,
     follow: true,
@@ -37,7 +44,7 @@ export const metadata: Metadata = {
         url: "/og.svg",
         width: 1200,
         height: 630,
-        alt: "PDF editor preview",
+        alt: "PIDIEF PDF editor preview",
       },
     ],
   },

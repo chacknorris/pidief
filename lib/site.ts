@@ -3,7 +3,8 @@ export function getSiteUrl(): string {
   return base.replace(/\/$/, "")
 }
 
-export const siteName = "PidiEF"
-export const siteTitle = "PDF Editor - Client-Side PDF Annotation Tool"
+export const siteName = "PIDIEF"
+export const siteTitle =
+  "PIDIEF | Private PDF merge and annotation in the browser"
 export const siteDescription =
-  "Client-side PDF editor for viewing, annotating, and managing PDF documents in your browser."
+  "Privacy-first PDF merging and annotation that runs entirely in the browser with no uploads and no backend."

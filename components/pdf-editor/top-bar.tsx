@@ -17,7 +17,8 @@ interface TopBarProps {
 }
 
 export function TopBar({ pdfState }: TopBarProps) {
-  const { loadPDF, exportPDF, state, updateLanguage, saveState, loadState } = pdfState
+  const { loadPDF, exportPDF, state, updateLanguage, saveState, loadState } =
+    pdfState
   const copy = getCopy(state.language)
 
   const handleImportPDF = () => {
@@ -35,12 +36,19 @@ export function TopBar({ pdfState }: TopBarProps) {
 
   const handleSaveJSON = () => {
     const json = saveState()
-    const suggested = state.document?.name?.replace(/\.pdf$/i, "") || "pdf-state"
+    const suggested =
+      state.document?.name?.replace(/\.pdf$/i, "") || "pdf-state"
     const desired =
       typeof window !== "undefined"
-        ? window.prompt(copy.topBar.savePrompt ?? "Nombre del archivo", `${suggested}.json`)
+        ? window.prompt(
+            copy.topBar.savePrompt ?? "Nombre del archivo",
+            `${suggested}.json`,
+          )
         : `${suggested}.json`
-    const fileName = desired && desired.trim() ? desired.trim().replace(/\.json$/i, "") + ".json" : `${suggested}.json`
+    const fileName =
+      desired && desired.trim()
+        ? desired.trim().replace(/\.json$/i, "") + ".json"
+        : `${suggested}.json`
     const blob = new Blob([json], { type: "application/json" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
@@ -71,7 +79,12 @@ export function TopBar({ pdfState }: TopBarProps) {
         {copy.topBar.import}
       </Button>
       <div className="ml-2 h-8 w-px bg-border" />
-      <Button onClick={exportPDF} variant="default" size="sm" disabled={!state.originalPdfSources.length}>
+      <Button
+        onClick={exportPDF}
+        variant="default"
+        size="sm"
+        disabled={!state.originalPdfSources.length}
+      >
         <FileDown className="mr-2 h-4 w-4" />
         {copy.topBar.export}
       </Button>
@@ -95,13 +108,17 @@ export function TopBar({ pdfState }: TopBarProps) {
             <DropdownMenuLabel>{copy.topBar.language}</DropdownMenuLabel>
             <DropdownMenuItem
               onClick={() => updateLanguage("en")}
-              className={state.language === "en" ? "font-semibold text-primary" : ""}
+              className={
+                state.language === "en" ? "font-semibold text-primary" : ""
+              }
             >
               English
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => updateLanguage("es")}
-              className={state.language === "es" ? "font-semibold text-primary" : ""}
+              className={
+                state.language === "es" ? "font-semibold text-primary" : ""
+              }
             >
               Español
             </DropdownMenuItem>

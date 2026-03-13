@@ -4,10 +4,25 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Slider } from "@/components/ui/slider"
-import { Trash2, Type, Highlighter, AlignLeft, AlignCenter, AlignRight, AlignJustify, ArrowRight } from "lucide-react"
+import {
+  Trash2,
+  Type,
+  Highlighter,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  AlignJustify,
+  ArrowRight,
+} from "lucide-react"
 import type { PDFState } from "@/hooks/use-pdf-state"
 import { getCopy } from "@/lib/i18n"
 
@@ -34,7 +49,11 @@ export function RightPanel({ pdfState }: RightPanelProps) {
   const currentPage = currentPageId ? state.pages[currentPageId] : null
   const copy = getCopy(state.language)
   const allElements = currentPage
-    ? [...(currentPage.texts || []), ...(currentPage.highlights || []), ...(currentPage.arrows || [])]
+    ? [
+        ...(currentPage.texts || []),
+        ...(currentPage.highlights || []),
+        ...(currentPage.arrows || []),
+      ]
     : []
   const primaryElementId = selectedElements[selectedElements.length - 1] || null
   const element = allElements.find((el) => el.id === primaryElementId)
@@ -44,7 +63,9 @@ export function RightPanel({ pdfState }: RightPanelProps) {
   return (
     <div className="flex w-80 flex-col border-l border-border bg-sidebar">
       <div className="border-b border-border p-3">
-        <h2 className="text-sm font-semibold text-sidebar-foreground">{copy.rightPanel.properties}</h2>
+        <h2 className="text-sm font-semibold text-sidebar-foreground">
+          {copy.rightPanel.properties}
+        </h2>
       </div>
 
       <div className="flex-1 space-y-6 overflow-auto p-4">
@@ -61,7 +82,9 @@ export function RightPanel({ pdfState }: RightPanelProps) {
               onClick={() => setAddMode(addMode === "text" ? null : "text")}
             >
               <Type className="h-4 w-4" />
-              <span className="text-xs">{copy.rightPanel.text(addMode === "text")}</span>
+              <span className="text-xs">
+                {copy.rightPanel.text(addMode === "text")}
+              </span>
             </Button>
             <Button
               size="sm"
@@ -128,7 +151,11 @@ export function RightPanel({ pdfState }: RightPanelProps) {
                     id="fontSize"
                     type="number"
                     value={element.fontSize}
-                    onChange={(e) => updateElement(element.id, { fontSize: Number.parseInt(e.target.value) })}
+                    onChange={(e) =>
+                      updateElement(element.id, {
+                        fontSize: Number.parseInt(e.target.value),
+                      })
+                    }
                     className="h-8"
                   />
                 </div>
@@ -140,7 +167,9 @@ export function RightPanel({ pdfState }: RightPanelProps) {
                     id="color"
                     type="color"
                     value={element.color}
-                    onChange={(e) => updateElement(element.id, { color: e.target.value })}
+                    onChange={(e) =>
+                      updateElement(element.id, { color: e.target.value })
+                    }
                     className="h-8"
                   />
                 </div>
@@ -151,7 +180,9 @@ export function RightPanel({ pdfState }: RightPanelProps) {
                   <Switch
                     id="bold"
                     checked={element.bold}
-                    onCheckedChange={(checked) => updateElement(element.id, { bold: checked })}
+                    onCheckedChange={(checked) =>
+                      updateElement(element.id, { bold: checked })
+                    }
                   />
                 </div>
                 <div className="space-y-2">
@@ -159,33 +190,49 @@ export function RightPanel({ pdfState }: RightPanelProps) {
                   <div className="grid grid-cols-4 gap-1">
                     <Button
                       size="sm"
-                      variant={element.textAlign === "left" ? "default" : "outline"}
+                      variant={
+                        element.textAlign === "left" ? "default" : "outline"
+                      }
                       className="h-8 w-full p-0"
-                      onClick={() => updateElement(element.id, { textAlign: "left" })}
+                      onClick={() =>
+                        updateElement(element.id, { textAlign: "left" })
+                      }
                     >
                       <AlignLeft className="h-4 w-4" />
                     </Button>
                     <Button
                       size="sm"
-                      variant={element.textAlign === "center" ? "default" : "outline"}
+                      variant={
+                        element.textAlign === "center" ? "default" : "outline"
+                      }
                       className="h-8 w-full p-0"
-                      onClick={() => updateElement(element.id, { textAlign: "center" })}
+                      onClick={() =>
+                        updateElement(element.id, { textAlign: "center" })
+                      }
                     >
                       <AlignCenter className="h-4 w-4" />
                     </Button>
                     <Button
                       size="sm"
-                      variant={element.textAlign === "right" ? "default" : "outline"}
+                      variant={
+                        element.textAlign === "right" ? "default" : "outline"
+                      }
                       className="h-8 w-full p-0"
-                      onClick={() => updateElement(element.id, { textAlign: "right" })}
+                      onClick={() =>
+                        updateElement(element.id, { textAlign: "right" })
+                      }
                     >
                       <AlignRight className="h-4 w-4" />
                     </Button>
                     <Button
                       size="sm"
-                      variant={element.textAlign === "justify" ? "default" : "outline"}
+                      variant={
+                        element.textAlign === "justify" ? "default" : "outline"
+                      }
                       className="h-8 w-full p-0"
-                      onClick={() => updateElement(element.id, { textAlign: "justify" })}
+                      onClick={() =>
+                        updateElement(element.id, { textAlign: "justify" })
+                      }
                     >
                       <AlignJustify className="h-4 w-4" />
                     </Button>
@@ -206,7 +253,10 @@ export function RightPanel({ pdfState }: RightPanelProps) {
                     type="color"
                     value={element.fillColor ?? element.color}
                     onChange={(e) =>
-                      updateElement(element.id, { fillColor: e.target.value, color: e.target.value })
+                      updateElement(element.id, {
+                        fillColor: e.target.value,
+                        color: e.target.value,
+                      })
                     }
                     className="h-8"
                   />
@@ -217,21 +267,31 @@ export function RightPanel({ pdfState }: RightPanelProps) {
                   </Label>
                   <Select
                     value={element.style ?? "fill"}
-                    onValueChange={(value) => updateElement(element.id, { style: value })}
+                    onValueChange={(value) =>
+                      updateElement(element.id, { style: value })
+                    }
                   >
                     <SelectTrigger id="highlightStyle" className="h-8">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="fill">{copy.rightPanel.highlightStyleFill}</SelectItem>
-                      <SelectItem value="border">{copy.rightPanel.highlightStyleBorder}</SelectItem>
-                      <SelectItem value="both">{copy.rightPanel.highlightStyleBoth}</SelectItem>
+                      <SelectItem value="fill">
+                        {copy.rightPanel.highlightStyleFill}
+                      </SelectItem>
+                      <SelectItem value="border">
+                        {copy.rightPanel.highlightStyleBorder}
+                      </SelectItem>
+                      <SelectItem value="both">
+                        {copy.rightPanel.highlightStyleBoth}
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="opacity" className="text-xs">
-                    {copy.rightPanel.highlightFillOpacity(element.fillOpacity ?? element.opacity)}
+                    {copy.rightPanel.highlightFillOpacity(
+                      element.fillOpacity ?? element.opacity,
+                    )}
                   </Label>
                   <Slider
                     id="opacity"
@@ -240,7 +300,10 @@ export function RightPanel({ pdfState }: RightPanelProps) {
                     step={0.1}
                     value={[element.fillOpacity ?? element.opacity]}
                     onValueChange={([value]) =>
-                      updateElement(element.id, { fillOpacity: value, opacity: value })
+                      updateElement(element.id, {
+                        fillOpacity: value,
+                        opacity: value,
+                      })
                     }
                   />
                 </div>
@@ -254,13 +317,19 @@ export function RightPanel({ pdfState }: RightPanelProps) {
                         id="highlightBorderColor"
                         type="color"
                         value={element.borderColor ?? element.color}
-                        onChange={(e) => updateElement(element.id, { borderColor: e.target.value })}
+                        onChange={(e) =>
+                          updateElement(element.id, {
+                            borderColor: e.target.value,
+                          })
+                        }
                         className="h-8"
                       />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="borderOpacity" className="text-xs">
-                        {copy.rightPanel.highlightBorderOpacity(element.borderOpacity ?? element.opacity)}
+                        {copy.rightPanel.highlightBorderOpacity(
+                          element.borderOpacity ?? element.opacity,
+                        )}
                       </Label>
                       <Slider
                         id="borderOpacity"
@@ -268,7 +337,9 @@ export function RightPanel({ pdfState }: RightPanelProps) {
                         max={1}
                         step={0.1}
                         value={[element.borderOpacity ?? element.opacity]}
-                        onValueChange={([value]) => updateElement(element.id, { borderOpacity: value })}
+                        onValueChange={([value]) =>
+                          updateElement(element.id, { borderOpacity: value })
+                        }
                       />
                     </div>
                     <div className="space-y-2">
@@ -279,7 +350,11 @@ export function RightPanel({ pdfState }: RightPanelProps) {
                         id="borderWidth"
                         type="number"
                         value={element.borderWidth}
-                        onChange={(e) => updateElement(element.id, { borderWidth: Number.parseInt(e.target.value) })}
+                        onChange={(e) =>
+                          updateElement(element.id, {
+                            borderWidth: Number.parseInt(e.target.value),
+                          })
+                        }
                         className="h-8"
                       />
                     </div>
@@ -293,7 +368,11 @@ export function RightPanel({ pdfState }: RightPanelProps) {
                     id="width"
                     type="number"
                     value={element.width}
-                    onChange={(e) => updateElement(element.id, { width: Number.parseInt(e.target.value) })}
+                    onChange={(e) =>
+                      updateElement(element.id, {
+                        width: Number.parseInt(e.target.value),
+                      })
+                    }
                     className="h-8"
                   />
                 </div>
@@ -305,7 +384,11 @@ export function RightPanel({ pdfState }: RightPanelProps) {
                     id="height"
                     type="number"
                     value={element.height}
-                    onChange={(e) => updateElement(element.id, { height: Number.parseInt(e.target.value) })}
+                    onChange={(e) =>
+                      updateElement(element.id, {
+                        height: Number.parseInt(e.target.value),
+                      })
+                    }
                     className="h-8"
                   />
                 </div>
@@ -323,7 +406,9 @@ export function RightPanel({ pdfState }: RightPanelProps) {
                     id="arrowColor"
                     type="color"
                     value={element.color}
-                    onChange={(e) => updateElement(element.id, { color: e.target.value })}
+                    onChange={(e) =>
+                      updateElement(element.id, { color: e.target.value })
+                    }
                     className="h-8"
                   />
                 </div>
@@ -334,9 +419,13 @@ export function RightPanel({ pdfState }: RightPanelProps) {
                       <Button
                         key={t}
                         size="sm"
-                        variant={element.thickness === t ? "default" : "outline"}
+                        variant={
+                          element.thickness === t ? "default" : "outline"
+                        }
                         className="h-8 w-full p-0"
-                        onClick={() => updateElement(element.id, { thickness: t })}
+                        onClick={() =>
+                          updateElement(element.id, { thickness: t })
+                        }
                       >
                         {t}px
                       </Button>
@@ -362,7 +451,9 @@ export function RightPanel({ pdfState }: RightPanelProps) {
             <Switch
               id="paginationEnabled"
               checked={state.pagination.enabled}
-              onCheckedChange={(checked) => updatePagination({ enabled: checked })}
+              onCheckedChange={(checked) =>
+                updatePagination({ enabled: checked })
+              }
             />
           </div>
           <div className="flex items-center justify-between">
@@ -372,7 +463,9 @@ export function RightPanel({ pdfState }: RightPanelProps) {
             <Switch
               id="paginationBackground"
               checked={state.pagination.backgroundBox}
-              onCheckedChange={(checked) => updatePagination({ backgroundBox: checked })}
+              onCheckedChange={(checked) =>
+                updatePagination({ backgroundBox: checked })
+              }
             />
           </div>
           <div className="space-y-2">
@@ -381,15 +474,23 @@ export function RightPanel({ pdfState }: RightPanelProps) {
             </Label>
             <Select
               value={state.pagination.position}
-              onValueChange={(value: any) => updatePagination({ position: value })}
+              onValueChange={(value: any) =>
+                updatePagination({ position: value })
+              }
             >
               <SelectTrigger id="position" className="h-8">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="bottom-center">{copy.rightPanel.pagination.bottomCenter}</SelectItem>
-                <SelectItem value="bottom-right">{copy.rightPanel.pagination.bottomRight}</SelectItem>
-                <SelectItem value="top-right">{copy.rightPanel.pagination.topRight}</SelectItem>
+                <SelectItem value="bottom-center">
+                  {copy.rightPanel.pagination.bottomCenter}
+                </SelectItem>
+                <SelectItem value="bottom-right">
+                  {copy.rightPanel.pagination.bottomRight}
+                </SelectItem>
+                <SelectItem value="top-right">
+                  {copy.rightPanel.pagination.topRight}
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -402,7 +503,9 @@ export function RightPanel({ pdfState }: RightPanelProps) {
                 id="startAt"
                 type="number"
                 value={state.pagination.startAt}
-                onChange={(e) => updatePagination({ startAt: Number.parseInt(e.target.value) })}
+                onChange={(e) =>
+                  updatePagination({ startAt: Number.parseInt(e.target.value) })
+                }
                 className="h-8"
               />
             </div>
@@ -417,7 +520,11 @@ export function RightPanel({ pdfState }: RightPanelProps) {
                   id="manualNumber"
                   value={footer.number}
                   onChange={(e) =>
-                    currentPageId ? updatePageFooter(currentPageId, { number: e.target.value }) : undefined
+                    currentPageId
+                      ? updatePageFooter(currentPageId, {
+                          number: e.target.value,
+                        })
+                      : undefined
                   }
                   className="h-8"
                 />
@@ -430,7 +537,11 @@ export function RightPanel({ pdfState }: RightPanelProps) {
                   id="manualDetail"
                   value={footer.detail}
                   onChange={(e) =>
-                    currentPageId ? updatePageFooter(currentPageId, { detail: e.target.value }) : undefined
+                    currentPageId
+                      ? updatePageFooter(currentPageId, {
+                          detail: e.target.value,
+                        })
+                      : undefined
                   }
                   className="h-8"
                 />
