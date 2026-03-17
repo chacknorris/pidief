@@ -1,6 +1,8 @@
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib"
 import type { DocumentState } from "@/types/pdf"
 
+const EDITOR_TEXT_BORDER_WIDTH = 2
+
 /**
  * Exports a PDF with overlays applied according to the document state.
  * This function treats the original PDF as immutable and applies all edits as overlays.
@@ -236,8 +238,10 @@ export async function exportFinalPDF(
           const scaledFontSize = textElement.fontSize * mapped.scale
           const color = hexToRgb(textElement.color)
           const padding = 4 * mapped.scale
-          const absoluteWidth = Math.max(0, mapped.width - padding * 2)
-          const absoluteHeight = Math.max(0, mapped.height - padding * 2)
+          const transparentBorder = EDITOR_TEXT_BORDER_WIDTH * mapped.scale
+          const contentInset = padding + transparentBorder
+          const absoluteWidth = Math.max(0, mapped.width - contentInset * 2)
+          const absoluteHeight = Math.max(0, mapped.height - contentInset * 2)
           const lineHeight = Math.max(1, scaledFontSize * 1.2)
 
           const content = normalizeLineBreaks(textElement.content || "")
@@ -246,19 +250,23 @@ export async function exportFinalPDF(
             lineHeight > 0 ? Math.floor(absoluteHeight / lineHeight) : 0
           const visibleLines = maxLines > 0 ? lines.slice(0, maxLines) : []
 
-          const topY = mapped.y + mapped.height - padding
+          // The editor renders text boxes with a 2px visual border.
+          // Export reserves that space as a transparent inset so text
+          // lands in the same visual position it had during editing.
+          const topY = mapped.y + mapped.height - contentInset
           const baselineY = topY - scaledFontSize
 
           visibleLines.forEach((line, index) => {
             const lineWidth = font.widthOfTextAtSize(line, scaledFontSize)
-            let finalX = mapped.x + padding
+            let finalX = mapped.x + contentInset
 
             switch (textElement.textAlign) {
               case "center":
-                finalX = mapped.x + padding + (absoluteWidth - lineWidth) / 2
+                finalX =
+                  mapped.x + contentInset + (absoluteWidth - lineWidth) / 2
                 break
               case "right":
-                finalX = mapped.x + padding + absoluteWidth - lineWidth
+                finalX = mapped.x + contentInset + absoluteWidth - lineWidth
                 break
               case "justify":
               case "left":
