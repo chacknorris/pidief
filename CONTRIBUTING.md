@@ -2,6 +2,16 @@
 
 PIDIEF aims to be easy to understand in a few minutes, easy to run in a few more, and safe to extend without introducing backend complexity. Contributions that keep the project simple, local-first, and reliable are the best fit.
 
+## Project philosophy
+
+PIDIEF is intentionally a small tool.
+
+- Keep the app browser-native and local-first
+- Avoid unnecessary backend or service complexity
+- Prefer explicit code over clever abstraction
+- Optimize for real document workflows, not feature count
+- Make changes easy for the next contributor to understand
+
 ## Before you start
 
 - Read [README.md](README.md) for product context.
@@ -18,11 +28,15 @@ PIDIEF aims to be easy to understand in a few minutes, easy to run in a few more
 ### Setup
 
 ```bash
+git clone https://github.com/chacknorris/pidief.git
+cd pidief
 npm install
 npm run dev
 ```
 
 Open `http://localhost:3000`.
+
+The app should be running in under 5 minutes on a standard Node 20+ setup.
 
 ### Quality checks
 
@@ -40,6 +54,14 @@ npm run check
 3. Keep each PR focused on one problem or one coherent improvement.
 4. Explain the user impact, tradeoffs, and testing in the PR description.
 
+## Good first contribution path
+
+1. Pick an item from [docs/good-first-issues.md](docs/good-first-issues.md).
+2. Read the relevant UI or state file before editing.
+3. Run the app locally and reproduce the current behavior.
+4. Make the smallest useful change that solves the issue.
+5. Run `npm run check` before opening the PR.
+
 ## Coding conventions
 
 - Prefer simple, explicit code over abstraction-heavy patterns.
@@ -47,8 +69,24 @@ npm run check
 - Put editor UI in `components/pdf-editor/`.
 - Put state transitions in `hooks/use-pdf-state.ts`.
 - Put PDF processing and browser-PDF integration in `lib/`.
+- Put shared editor contracts in `types/`.
 - Add comments only when the code would otherwise be hard to follow.
 - Preserve TypeScript types and avoid `any` unless there is a clear practical reason.
+- If touching a high-risk file, prefer extraction of small helpers over broad rewrites.
+
+## Files that are easiest to change first
+
+- `components/pdf-editor/top-bar.tsx`
+- `components/pdf-editor/right-panel.tsx`
+- `lib/i18n.ts`
+- documentation under `docs/`
+- tests under `hooks/` and `lib/`
+
+## Files that need extra care
+
+- `components/pdf-editor/center-canvas.tsx`
+- `hooks/use-pdf-state.ts`
+- `lib/pdf-export.ts`
 
 ## Commit hygiene
 
@@ -56,6 +94,12 @@ npm run check
 - Keep refactors separate from behavior changes when practical.
 - Avoid mixing formatting-only changes with product logic changes.
 - Rebase or squash noisy fixup commits before merge if needed.
+
+Examples:
+
+- `Add keyboard shortcuts help modal`
+- `Improve invalid PDF error messages`
+- `Extract PDF state serialization helpers`
 
 ## Reporting bugs
 
@@ -86,6 +130,13 @@ Use the feature request template and describe:
 - mobile and touch support
 - tests around state and export behavior
 - docs and onboarding improvements
+
+## What usually gets delayed or pushed back
+
+- backend features that break the no-upload model
+- large UI rewrites without a workflow problem attached
+- broad refactors without tests or incremental steps
+- features that add complexity without improving the core PDF workflow
 
 ## Pull request checklist
 
