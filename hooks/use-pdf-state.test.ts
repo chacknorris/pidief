@@ -60,4 +60,53 @@ describe("use-pdf-state serialization", () => {
     expect(restored?.state.pageMetrics["page-1"].width).toBe(200)
     expect(restored?.currentPageId).toBe("page-1")
   })
+
+  it("defaults legacy text elements to Arial when fontFamily is missing", () => {
+    const restored = deserializeDocumentState(
+      JSON.stringify({
+        document: {
+          name: "legacy.pdf",
+          createdAt: new Date().toISOString(),
+          pageOrder: ["page-1"],
+        },
+        pages: {
+          "page-1": {
+            texts: [
+              {
+                id: "text-1",
+                type: "text",
+                x: 10,
+                y: 20,
+                width: 100,
+                height: 30,
+                content: "Legacy",
+                fontSize: 16,
+                color: "#000000",
+                bold: false,
+                textAlign: "left",
+              },
+            ],
+            highlights: [],
+            arrows: [],
+            footer: { number: "", detail: "" },
+          },
+        },
+        pagination: {
+          enabled: false,
+          position: "bottom-center",
+          startAt: 1,
+          backgroundBox: false,
+        },
+        language: "en",
+        coordinateSpace: "pdf",
+        originalPdfBytes: null,
+        originalPdfSources: [],
+        pageMetrics: {
+          "page-1": { width: 200, height: 300, pageIndex: 0, sourceIndex: 0 },
+        },
+      }),
+    )
+
+    expect(restored?.state.pages["page-1"].texts[0].fontFamily).toBe("Arial")
+  })
 })

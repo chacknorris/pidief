@@ -27,6 +27,7 @@ type Copy = {
     arrow: string
     selected: (count: number) => string
     multiHint: string
+    fontFamily: string
     fontSize: string
     color: string
     bold: string
@@ -89,6 +90,7 @@ const copy: Record<Lang, Copy> = {
         count > 1 ? `Selected (${count})` : "Selected Element",
       multiHint:
         "Shift or Cmd/Ctrl + click to add/remove elements and move them together.",
+      fontFamily: "Font Family",
       fontSize: "Font Size",
       color: "Color",
       bold: "Bold",
@@ -151,6 +153,7 @@ const copy: Record<Lang, Copy> = {
         count > 1 ? `Seleccionados (${count})` : "Elemento seleccionado",
       multiHint:
         "Shift o Cmd/Ctrl + click para sumar/quitar elementos y moverlos en bloque.",
+      fontFamily: "Fuente",
       fontSize: "Tamaño de fuente",
       color: "Color",
       bold: "Negrita",

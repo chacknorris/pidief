@@ -7,6 +7,7 @@ import type { ReactElement } from "react"
 import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from "lucide-react"
+import { getEditorFontStack } from "@/lib/text-fonts"
 import type { PDFState } from "@/types/pdf"
 import { getPdfJs } from "@/lib/pdfjs"
 import { cn } from "@/lib/utils"
@@ -927,6 +928,7 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
                   top: text.y,
                   width: text.width,
                   height: text.height,
+                  fontFamily: getEditorFontStack(text.fontFamily ?? "Arial"),
                   fontSize: text.fontSize,
                   color: text.color,
                   fontWeight: text.bold ? "bold" : "normal",

@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Slider } from "@/components/ui/slider"
+import { TEXT_FONT_OPTIONS } from "@/lib/text-fonts"
 import {
   Trash2,
   Type,
@@ -143,6 +144,28 @@ export function RightPanel({ pdfState }: RightPanelProps) {
             {/* Text Properties */}
             {element && "content" in element && (
               <>
+                <div className="space-y-2">
+                  <Label htmlFor="fontFamily" className="text-xs">
+                    {copy.rightPanel.fontFamily}
+                  </Label>
+                  <Select
+                    value={element.fontFamily ?? "Arial"}
+                    onValueChange={(value) =>
+                      updateElement(element.id, { fontFamily: value })
+                    }
+                  >
+                    <SelectTrigger id="fontFamily" className="h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TEXT_FONT_OPTIONS.map((font) => (
+                        <SelectItem key={font} value={font}>
+                          {font}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="fontSize" className="text-xs">
                     {copy.rightPanel.fontSize}

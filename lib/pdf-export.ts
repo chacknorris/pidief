@@ -1,5 +1,6 @@
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib"
 import type { DocumentState } from "@/types/pdf"
+import { getPdfStandardFont } from "./text-fonts"
 
 const EDITOR_TEXT_BORDER_WIDTH = 2
 
@@ -229,11 +230,12 @@ export async function exportFinalPDF(
             useTransform ? metrics?.transform : undefined,
           )
 
-          const font = textElement.bold
-            ? await pdfDoc
-                .embedFont(StandardFonts.HelveticaBold)
-                .catch(() => pdfDoc.embedFont(StandardFonts.Helvetica))
-            : await pdfDoc.embedFont(StandardFonts.Helvetica)
+          const font = await pdfDoc.embedFont(
+            getPdfStandardFont(
+              textElement.fontFamily ?? "Arial",
+              textElement.bold,
+            ),
+          )
 
           const scaledFontSize = textElement.fontSize * mapped.scale
           const color = hexToRgb(textElement.color)

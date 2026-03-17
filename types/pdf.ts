@@ -1,3 +1,10 @@
+export type TextFontFamily =
+  | "Arial"
+  | "Helvetica"
+  | "Verdana"
+  | "Times New Roman"
+  | "Courier New"
+
 export interface TextElement {
   id: string
   type: "text"
@@ -6,6 +13,7 @@ export interface TextElement {
   width: number
   height: number
   content: string
+  fontFamily: TextFontFamily
   fontSize: number
   color: string
   bold: boolean

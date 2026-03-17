@@ -7,6 +7,7 @@ import {
   createInitialDocumentState,
 } from "../lib/pdf-state"
 import { getPdfJs } from "../lib/pdfjs"
+import { isTextFontFamily } from "../lib/text-fonts"
 import type {
   ArrowElement,
   DocumentState,
@@ -113,7 +114,12 @@ export function deserializeDocumentState(
                 : legacyManualDetail,
           }
           normalizedPages[id] = {
-            texts: page.texts || [],
+            texts: (page.texts || []).map((text: any) => ({
+              ...text,
+              fontFamily: isTextFontFamily(text.fontFamily)
+                ? text.fontFamily
+                : "Arial",
+            })),
             highlights: (page.highlights || []).map((highlight: any) => ({
               ...highlight,
               style:
@@ -412,6 +418,7 @@ export function usePDFState(): PDFState {
         width: 200,
         height: 40,
         content: "New Text",
+        fontFamily: "Arial",
         fontSize: 16,
         color: "#000000",
         bold: false,
