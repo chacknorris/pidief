@@ -9,12 +9,14 @@ import {
   createInitialDocumentState,
 } from "../lib/pdf-state"
 import { getPdfJs } from "../lib/pdfjs"
+import { extractTextBlocksFromPage } from "../lib/pdf-text"
 import { isTextFontFamily } from "../lib/text-fonts"
 import type {
   ArrowElement,
   DocumentState,
   HighlightElement,
   PageData,
+  PdfTextReplacementElement,
   PDFState,
   TextElement,
 } from "../types/pdf"
@@ -153,6 +155,86 @@ export function deserializeDocumentState(
               ...ar,
               angle: typeof ar.angle === "number" ? ar.angle : 0,
             })),
+            textReplacements: (page.textReplacements || []).map(
+              (replacement: any) => ({
+                ...replacement,
+                fontFamily: isTextFontFamily(replacement.fontFamily)
+                  ? replacement.fontFamily
+                  : "Arial",
+                lineHeight:
+                  typeof replacement.lineHeight === "number"
+                    ? replacement.lineHeight
+                    : typeof replacement.height === "number"
+                      ? replacement.height
+                      : typeof replacement.fontSize === "number"
+                        ? replacement.fontSize * 1.1
+                        : 16,
+                baselineOffset:
+                  typeof replacement.baselineOffset === "number"
+                    ? replacement.baselineOffset
+                    : typeof replacement.fontSize === "number"
+                      ? replacement.fontSize * 0.82
+                      : 13,
+                bold:
+                  typeof replacement.bold === "boolean"
+                    ? replacement.bold
+                    : false,
+                italic:
+                  typeof replacement.italic === "boolean"
+                    ? replacement.italic
+                    : false,
+                textAlign:
+                  replacement.textAlign === "center" ||
+                  replacement.textAlign === "right"
+                    ? replacement.textAlign
+                    : "left",
+                backgroundColor:
+                  typeof replacement.backgroundColor === "string"
+                    ? replacement.backgroundColor
+                    : "transparent",
+                maskEnabled:
+                  typeof replacement.maskEnabled === "boolean"
+                    ? replacement.maskEnabled
+                    : true,
+                maskColor:
+                  typeof replacement.maskColor === "string"
+                    ? replacement.maskColor
+                    : "#ffffff",
+              }),
+            ),
+            extractedTextBlocks: (page.extractedTextBlocks || [])
+              .filter((block: any) => block && typeof block.text === "string")
+              .map((block: any) => ({
+                ...block,
+                lineHeight:
+                  typeof block.lineHeight === "number"
+                    ? block.lineHeight
+                    : typeof block.height === "number"
+                      ? block.height
+                      : typeof block.fontSize === "number"
+                        ? block.fontSize * 1.1
+                        : 16,
+                baselineOffset:
+                  typeof block.baselineOffset === "number"
+                    ? block.baselineOffset
+                    : typeof block.fontSize === "number"
+                      ? block.fontSize * 0.82
+                      : 13,
+                fontFamily: isTextFontFamily(block.fontFamily)
+                  ? block.fontFamily
+                  : "Arial",
+                sourceFontName:
+                  typeof block.sourceFontName === "string"
+                    ? block.sourceFontName
+                    : null,
+                sourceFontFamily:
+                  typeof block.sourceFontFamily === "string"
+                    ? block.sourceFontFamily
+                    : null,
+                bold: typeof block.bold === "boolean" ? block.bold : false,
+                italic:
+                  typeof block.italic === "boolean" ? block.italic : false,
+              })),
             footer,
           }
         },
@@ -192,6 +274,26 @@ export function deserializeDocumentState(
         height: arrow.height * scale,
         thickness: arrow.thickness * scale,
         angle: typeof arrow.angle === "number" ? arrow.angle : 0,
+      })),
+      textReplacements: page.textReplacements.map((replacement) => ({
+        ...replacement,
+        x: replacement.x * scale,
+        y: replacement.y * scale,
+        width: replacement.width * scale,
+        height: replacement.height * scale,
+        fontSize: replacement.fontSize * scale,
+        lineHeight: replacement.lineHeight * scale,
+        baselineOffset: replacement.baselineOffset * scale,
+      })),
+      extractedTextBlocks: page.extractedTextBlocks.map((block) => ({
+        ...block,
+        x: block.x * scale,
+        y: block.y * scale,
+        width: block.width * scale,
+        height: block.height * scale,
+        fontSize: block.fontSize * scale,
+        lineHeight: block.lineHeight * scale,
+        baselineOffset: block.baselineOffset * scale,
       })),
       footer: page.footer,
     })
@@ -315,10 +417,35 @@ export function usePDFState(): PDFState {
         for (let i = 1; i <= pageCount; i++) {
           const page = await pdfDocument.getPage(i)
           const viewport = page.getViewport({ scale: 1.0 })
+          const textContent = await page.getTextContent()
 
           const pageId = `page-${Date.now()}-${i}`
           pageOrder.push(pageId)
-          pages[pageId] = createEmptyPageData()
+          pages[pageId] = {
+            ...createEmptyPageData(),
+            extractedTextBlocks: extractTextBlocksFromPage(
+              textContent.items as Array<{
+                str?: string
+                transform?: number[]
+                width?: number
+                height?: number
+                fontName?: string
+                hasEOL?: boolean
+              }>,
+              textContent.styles as Record<
+                string,
+                {
+                  fontFamily?: string
+                  ascent?: number
+                  descent?: number
+                }
+              >,
+              {
+                transform: Array.from(viewport.transform || []),
+              },
+              pdfjsLib,
+            ),
+          }
           pageMetricsBase[pageId] = {
             width: viewport.width,
             height: viewport.height,
@@ -463,6 +590,65 @@ export function usePDFState(): PDFState {
     [currentPageId, pushHistory],
   )
 
+  const addTextReplacementFromBlock = useCallback(
+    (blockId: string) => {
+      if (!currentPageId) return
+
+      setState((prev) => {
+        const page = prev.pages[currentPageId] ?? createEmptyPageData()
+        const sourceBlock = page.extractedTextBlocks.find(
+          (block) => block.id === blockId,
+        )
+        if (!sourceBlock) return prev
+
+        const existingReplacement = page.textReplacements.find(
+          (replacement) => replacement.sourceBlockId === blockId,
+        )
+        if (existingReplacement) {
+          setSelectedElements([existingReplacement.id])
+          return prev
+        }
+
+        const replacement: PdfTextReplacementElement = {
+          id: `pdf-text-replacement-${Date.now()}`,
+          type: "pdf-text-replacement",
+          sourceBlockId: sourceBlock.id,
+          sourceText: sourceBlock.text,
+          replacementText: sourceBlock.text,
+          x: sourceBlock.x,
+          y: sourceBlock.y,
+          width: sourceBlock.width,
+          height: sourceBlock.height,
+          fontFamily: sourceBlock.fontFamily,
+          fontSize: sourceBlock.fontSize,
+          lineHeight: sourceBlock.lineHeight,
+          baselineOffset: sourceBlock.baselineOffset,
+          color: "#000000",
+          bold: sourceBlock.bold,
+          italic: sourceBlock.italic,
+          textAlign: "left",
+          backgroundColor: "transparent",
+          maskEnabled: true,
+          maskColor: "#ffffff",
+        }
+
+        pushHistory(prev)
+        setSelectedElements([replacement.id])
+        return {
+          ...prev,
+          pages: {
+            ...prev.pages,
+            [currentPageId]: {
+              ...page,
+              textReplacements: [...page.textReplacements, replacement],
+            },
+          },
+        }
+      })
+    },
+    [currentPageId, pushHistory],
+  )
+
   const addHighlight = useCallback(() => {
     if (!currentPageId) return
 
@@ -554,6 +740,10 @@ export function usePDFState(): PDFState {
               arrows: page.arrows.map((el) =>
                 updates[el.id] ? { ...el, ...updates[el.id] } : el,
               ),
+              textReplacements: page.textReplacements.map((el) =>
+                updates[el.id] ? { ...el, ...updates[el.id] } : el,
+              ),
+              extractedTextBlocks: page.extractedTextBlocks,
               footer: page.footer,
             },
           },
@@ -586,6 +776,10 @@ export function usePDFState(): PDFState {
               texts: page.texts.filter((el) => el.id !== id),
               highlights: page.highlights.filter((el) => el.id !== id),
               arrows: page.arrows.filter((el) => el.id !== id),
+              textReplacements: page.textReplacements.filter(
+                (el) => el.id !== id,
+              ),
+              extractedTextBlocks: page.extractedTextBlocks,
               footer: page.footer,
             },
           },
@@ -611,6 +805,10 @@ export function usePDFState(): PDFState {
               texts: page.texts.filter((el) => !ids.includes(el.id)),
               highlights: page.highlights.filter((el) => !ids.includes(el.id)),
               arrows: page.arrows.filter((el) => !ids.includes(el.id)),
+              textReplacements: page.textReplacements.filter(
+                (el) => !ids.includes(el.id),
+              ),
+              extractedTextBlocks: page.extractedTextBlocks,
               footer: page.footer,
             },
           },
@@ -860,6 +1058,7 @@ export function usePDFState(): PDFState {
     toggleElementSelection,
     setAddMode,
     addTextElement,
+    addTextReplacementFromBlock,
     addHighlight,
     addArrow,
     updateElement,

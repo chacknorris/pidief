@@ -5,6 +5,23 @@ export type TextFontFamily =
   | "Times New Roman"
   | "Courier New"
 
+export interface PdfTextBlock {
+  id: string
+  text: string
+  x: number
+  y: number
+  width: number
+  height: number
+  fontSize: number
+  lineHeight: number
+  baselineOffset: number
+  fontFamily: TextFontFamily
+  sourceFontName: string | null
+  sourceFontFamily: string | null
+  bold: boolean
+  italic: boolean
+}
+
 export interface TextElement {
   id: string
   type: "text"
@@ -49,6 +66,29 @@ export interface ArrowElement {
   angle: number
 }
 
+export interface PdfTextReplacementElement {
+  id: string
+  type: "pdf-text-replacement"
+  sourceBlockId: string
+  sourceText: string
+  replacementText: string
+  x: number
+  y: number
+  width: number
+  height: number
+  fontFamily: TextFontFamily
+  fontSize: number
+  lineHeight: number
+  baselineOffset: number
+  color: string
+  bold: boolean
+  italic: boolean
+  textAlign: "left" | "center" | "right"
+  backgroundColor: string
+  maskEnabled: boolean
+  maskColor: string
+}
+
 export interface PageFooter {
   number: string
   detail: string
@@ -58,6 +98,8 @@ export interface PageData {
   texts: TextElement[]
   highlights: HighlightElement[]
   arrows: ArrowElement[]
+  textReplacements: PdfTextReplacementElement[]
+  extractedTextBlocks: PdfTextBlock[]
   footer: PageFooter
 }
 
@@ -97,7 +139,7 @@ export interface PDFState {
   state: DocumentState
   currentPageId: string | null
   selectedElements: string[]
-  addMode: "text" | null
+  addMode: "text" | "pdf-text-replacement" | null
   loadPDF: (file: File, insertAtIndex?: number) => Promise<number>
   saveState: () => string
   loadState: (json: string) => void
@@ -107,6 +149,7 @@ export interface PDFState {
   toggleElementSelection: (id: string, additive: boolean) => void
   setAddMode: (mode: PDFState["addMode"]) => void
   addTextElement: (x: number, y: number) => void
+  addTextReplacementFromBlock: (blockId: string) => void
   addHighlight: () => void
   addArrow: () => void
   updateElement: (id: string, updates: any) => void

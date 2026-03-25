@@ -13,6 +13,20 @@ export function isTextFontFamily(value: unknown): value is TextFontFamily {
   return TEXT_FONT_OPTIONS.includes(value as TextFontFamily)
 }
 
+export function inferTextFontFamily(
+  ...candidates: Array<string | null | undefined>
+): TextFontFamily {
+  const haystack = candidates.filter(Boolean).join(" ").toLowerCase()
+
+  if (haystack.includes("times")) return "Times New Roman"
+  if (haystack.includes("courier")) return "Courier New"
+  if (haystack.includes("verdana")) return "Verdana"
+  if (haystack.includes("helvetica")) return "Helvetica"
+  if (haystack.includes("arial")) return "Arial"
+
+  return "Arial"
+}
+
 export function getEditorFontStack(fontFamily: TextFontFamily): string {
   switch (fontFamily) {
     case "Helvetica":
@@ -32,16 +46,26 @@ export function getEditorFontStack(fontFamily: TextFontFamily): string {
 export function getPdfStandardFont(
   fontFamily: TextElement["fontFamily"],
   bold: boolean,
+  italic = false,
 ): StandardFonts {
   switch (fontFamily) {
     case "Times New Roman":
-      return bold ? StandardFonts.TimesRomanBold : StandardFonts.TimesRoman
+      if (bold && italic) return StandardFonts.TimesRomanBoldItalic
+      if (bold) return StandardFonts.TimesRomanBold
+      if (italic) return StandardFonts.TimesRomanItalic
+      return StandardFonts.TimesRoman
     case "Courier New":
-      return bold ? StandardFonts.CourierBold : StandardFonts.Courier
+      if (bold && italic) return StandardFonts.CourierBoldOblique
+      if (bold) return StandardFonts.CourierBold
+      if (italic) return StandardFonts.CourierOblique
+      return StandardFonts.Courier
     case "Arial":
     case "Helvetica":
     case "Verdana":
     default:
-      return bold ? StandardFonts.HelveticaBold : StandardFonts.Helvetica
+      if (bold && italic) return StandardFonts.HelveticaBoldOblique
+      if (bold) return StandardFonts.HelveticaBold
+      if (italic) return StandardFonts.HelveticaOblique
+      return StandardFonts.Helvetica
   }
 }

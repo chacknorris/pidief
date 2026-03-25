@@ -6,7 +6,13 @@ import type { ReactElement } from "react"
 
 import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from "lucide-react"
+import {
+  ZoomIn,
+  ZoomOut,
+  ChevronLeft,
+  ChevronRight,
+  GripHorizontal,
+} from "lucide-react"
 import { getEditorFontStack } from "@/lib/text-fonts"
 import type { PDFState } from "@/types/pdf"
 import { getPdfJs } from "@/lib/pdfjs"
@@ -32,6 +38,10 @@ function hexToRgba(hex: string, opacity: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
+function isTransparentColor(color: string | undefined): boolean {
+  return !color || color.toLowerCase() === "transparent"
+}
+
 export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
   const {
     state,
@@ -42,6 +52,7 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
     addMode,
     setAddMode,
     addTextElement,
+    addTextReplacementFromBlock,
     updateElement,
     updateElements,
     setCurrentPageId,
@@ -113,6 +124,7 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
             ...(currentPage.texts || []),
             ...(currentPage.highlights || []),
             ...(currentPage.arrows || []),
+            ...(currentPage.textReplacements || []),
           ]
         : [],
     [currentPage],
@@ -211,6 +223,26 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
       y: e.clientY,
     })
     setDragStartPositions(positions)
+  }
+
+  const handleReplacementContentMouseDown = (
+    e: React.MouseEvent<HTMLDivElement>,
+    elementId: string,
+  ) => {
+    e.stopPropagation()
+
+    const additive = e.shiftKey || e.metaKey || e.ctrlKey
+    if (additive) {
+      toggleElementSelection(elementId, true)
+      return
+    }
+
+    if (
+      !selectedElements.includes(elementId) ||
+      selectedElements.length !== 1
+    ) {
+      setSelectedElements([elementId])
+    }
   }
 
   const handleDragMove = (e: MouseEvent) => {
@@ -968,6 +1000,140 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
                       transform: "translate(50%, 50%)",
                     }}
                     onMouseDown={(e) => handleResizeStart(e, text.id, text)}
+                  />
+                )}
+              </div>
+            ))}
+
+            {addMode === "pdf-text-replacement" &&
+              currentPage.extractedTextBlocks?.map((block) => (
+                <button
+                  key={block.id}
+                  type="button"
+                  className="absolute cursor-pointer border border-dashed border-primary/70 bg-primary/10 hover:bg-primary/20"
+                  style={{
+                    left: block.x,
+                    top: block.y,
+                    width: block.width,
+                    height: block.height,
+                  }}
+                  title={block.text}
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                  }}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    addTextReplacementFromBlock(block.id)
+                    setAddMode(null)
+                  }}
+                />
+              ))}
+
+            {currentPage.textReplacements?.map((replacement) => (
+              <div
+                key={replacement.id}
+                data-element-id={replacement.id}
+                className="group absolute transition-colors"
+                style={{
+                  left: replacement.x,
+                  top: replacement.y,
+                  width: replacement.width,
+                  height: replacement.height,
+                  fontFamily: getEditorFontStack(
+                    replacement.fontFamily ?? "Arial",
+                  ),
+                  fontSize: replacement.fontSize,
+                  fontWeight: replacement.bold ? "bold" : "normal",
+                  fontStyle: replacement.italic ? "italic" : "normal",
+                  color: replacement.color,
+                  lineHeight: `${replacement.lineHeight}px`,
+                  boxSizing: "border-box",
+                  outline: selectedElements.includes(replacement.id)
+                    ? "2px solid hsl(var(--primary))"
+                    : "1px dashed transparent",
+                  outlineOffset: 0,
+                }}
+                onClick={(e) => handleElementClick(e, replacement.id)}
+              >
+                {replacement.maskEnabled &&
+                  !isTransparentColor(replacement.maskColor) && (
+                    <div
+                      className="pointer-events-none absolute inset-0"
+                      style={{
+                        backgroundColor: replacement.maskColor,
+                      }}
+                    />
+                  )}
+                {!isTransparentColor(replacement.backgroundColor) && (
+                  <div
+                    className="pointer-events-none absolute inset-0"
+                    style={{
+                      backgroundColor: replacement.backgroundColor,
+                    }}
+                  />
+                )}
+                <button
+                  type="button"
+                  className={cn(
+                    "absolute -right-2 -top-2 z-10 flex h-5 min-w-8 items-center justify-center rounded-full border border-border bg-background/95 px-1.5 text-muted-foreground shadow-sm transition-all",
+                    selectedElements.includes(replacement.id)
+                      ? "opacity-100"
+                      : "opacity-0 group-hover:opacity-90",
+                  )}
+                  title="Move block"
+                  onMouseDown={(e) => {
+                    e.stopPropagation()
+                    handleDragStart(e, replacement.id)
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <GripHorizontal className="h-3.5 w-3.5" />
+                </button>
+                <div
+                  contentEditable
+                  suppressContentEditableWarning
+                  className="relative z-[1] h-full w-full cursor-text overflow-hidden outline-none"
+                  style={{
+                    wordWrap: "break-word",
+                    overflowWrap: "break-word",
+                    whiteSpace: "pre-wrap",
+                    textAlign: replacement.textAlign || "left",
+                    lineHeight: `${replacement.lineHeight}px`,
+                    fontWeight: replacement.bold ? "bold" : "normal",
+                    fontStyle: replacement.italic ? "italic" : "normal",
+                  }}
+                  onMouseDown={(e) =>
+                    handleReplacementContentMouseDown(e, replacement.id)
+                  }
+                  onClick={(e) => e.stopPropagation()}
+                  onFocus={() => {
+                    if (
+                      !selectedElements.includes(replacement.id) ||
+                      selectedElements.length !== 1
+                    ) {
+                      setSelectedElements([replacement.id])
+                    }
+                  }}
+                  onBlur={(e) => {
+                    const replacementText = (
+                      e.currentTarget.innerText || ""
+                    ).replace(/\r\n/g, "\n")
+                    updateElement(replacement.id, { replacementText })
+                  }}
+                >
+                  {replacement.replacementText}
+                </div>
+                {selectedElements.includes(replacement.id) && (
+                  <div
+                    className="absolute bottom-0 right-0 h-3 w-3 cursor-se-resize bg-primary"
+                    style={{
+                      transform: "translate(50%, 50%)",
+                    }}
+                    onMouseDown={(e) =>
+                      handleResizeStart(e, replacement.id, replacement)
+                    }
                   />
                 )}
               </div>

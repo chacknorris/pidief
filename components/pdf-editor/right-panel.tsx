@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Slider } from "@/components/ui/slider"
+import { Textarea } from "@/components/ui/textarea"
 import { TEXT_FONT_OPTIONS } from "@/lib/text-fonts"
 import {
   Trash2,
@@ -54,6 +55,7 @@ export function RightPanel({ pdfState }: RightPanelProps) {
         ...(currentPage.texts || []),
         ...(currentPage.highlights || []),
         ...(currentPage.arrows || []),
+        ...(currentPage.textReplacements || []),
       ]
     : []
   const primaryElementId = selectedElements[selectedElements.length - 1] || null
@@ -75,7 +77,7 @@ export function RightPanel({ pdfState }: RightPanelProps) {
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {copy.rightPanel.addElement}
           </h3>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-4 gap-2">
             <Button
               size="sm"
               variant="outline"
@@ -86,6 +88,22 @@ export function RightPanel({ pdfState }: RightPanelProps) {
               <span className="text-xs">
                 {copy.rightPanel.text(addMode === "text")}
               </span>
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex flex-col gap-1 h-auto py-3 bg-transparent"
+              onClick={() =>
+                setAddMode(
+                  addMode === "pdf-text-replacement"
+                    ? null
+                    : "pdf-text-replacement",
+                )
+              }
+              disabled={!currentPage?.extractedTextBlocks?.length}
+            >
+              <Type className="h-4 w-4" />
+              <span className="text-xs">PDF Text</span>
             </Button>
             <Button
               size="sm"
@@ -260,6 +278,194 @@ export function RightPanel({ pdfState }: RightPanelProps) {
                       <AlignJustify className="h-4 w-4" />
                     </Button>
                   </div>
+                </div>
+              </>
+            )}
+
+            {element && "replacementText" in element && (
+              <>
+                <div className="space-y-2">
+                  <Label className="text-xs">Original</Label>
+                  <div className="rounded border border-border bg-muted/40 p-2 text-xs text-muted-foreground">
+                    {element.sourceText}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="replacementText" className="text-xs">
+                    Replacement Text
+                  </Label>
+                  <Textarea
+                    id="replacementText"
+                    value={element.replacementText}
+                    onChange={(e) =>
+                      updateElement(element.id, {
+                        replacementText: e.target.value,
+                      })
+                    }
+                    className="min-h-20"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="replacementFontFamily" className="text-xs">
+                    {copy.rightPanel.fontFamily}
+                  </Label>
+                  <Select
+                    value={element.fontFamily ?? "Arial"}
+                    onValueChange={(value) =>
+                      updateElement(element.id, { fontFamily: value })
+                    }
+                  >
+                    <SelectTrigger id="replacementFontFamily" className="h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TEXT_FONT_OPTIONS.map((font) => (
+                        <SelectItem key={font} value={font}>
+                          {font}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="replacementFontSize" className="text-xs">
+                    {copy.rightPanel.fontSize}
+                  </Label>
+                  <Input
+                    id="replacementFontSize"
+                    type="number"
+                    value={element.fontSize}
+                    onChange={(e) => {
+                      const nextFontSize = Number.parseInt(e.target.value)
+                      if (!Number.isFinite(nextFontSize) || nextFontSize <= 0) {
+                        return
+                      }
+
+                      const scale =
+                        element.fontSize > 0
+                          ? nextFontSize / element.fontSize
+                          : 1
+
+                      updateElement(element.id, {
+                        fontSize: nextFontSize,
+                        lineHeight: Math.max(
+                          nextFontSize,
+                          element.lineHeight * scale,
+                        ),
+                        baselineOffset: Math.max(
+                          nextFontSize * 0.65,
+                          element.baselineOffset * scale,
+                        ),
+                      })
+                    }}
+                    className="h-8"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="replacementColor" className="text-xs">
+                    {copy.rightPanel.color}
+                  </Label>
+                  <Input
+                    id="replacementColor"
+                    type="color"
+                    value={element.color}
+                    onChange={(e) =>
+                      updateElement(element.id, { color: e.target.value })
+                    }
+                    className="h-8"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="replacementBold" className="text-xs">
+                    {copy.rightPanel.bold}
+                  </Label>
+                  <Switch
+                    id="replacementBold"
+                    checked={element.bold}
+                    onCheckedChange={(checked) =>
+                      updateElement(element.id, { bold: checked })
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="replacementItalic" className="text-xs">
+                    Italic
+                  </Label>
+                  <Switch
+                    id="replacementItalic"
+                    checked={element.italic}
+                    onCheckedChange={(checked) =>
+                      updateElement(element.id, { italic: checked })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="replacementBackgroundColor"
+                    className="text-xs"
+                  >
+                    Text Background
+                  </Label>
+                  <div className="flex items-center justify-between">
+                    <Label
+                      htmlFor="replacementTransparentBg"
+                      className="text-xs"
+                    >
+                      Transparent
+                    </Label>
+                    <Switch
+                      id="replacementTransparentBg"
+                      checked={element.backgroundColor === "transparent"}
+                      onCheckedChange={(checked) =>
+                        updateElement(element.id, {
+                          backgroundColor: checked ? "transparent" : "#ffffff",
+                        })
+                      }
+                    />
+                  </div>
+                  <Input
+                    id="replacementBackgroundColor"
+                    type="color"
+                    value={
+                      element.backgroundColor === "transparent"
+                        ? "#ffffff"
+                        : element.backgroundColor
+                    }
+                    onChange={(e) =>
+                      updateElement(element.id, {
+                        backgroundColor: e.target.value,
+                      })
+                    }
+                    className="h-8"
+                    disabled={element.backgroundColor === "transparent"}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Hide Original Text</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="replacementMaskEnabled" className="text-xs">
+                      Mask original
+                    </Label>
+                    <Switch
+                      id="replacementMaskEnabled"
+                      checked={element.maskEnabled}
+                      onCheckedChange={(checked) =>
+                        updateElement(element.id, { maskEnabled: checked })
+                      }
+                    />
+                  </div>
+                  <Input
+                    id="replacementMaskColor"
+                    type="color"
+                    value={element.maskColor}
+                    onChange={(e) =>
+                      updateElement(element.id, {
+                        maskColor: e.target.value,
+                      })
+                    }
+                    className="h-8"
+                    disabled={!element.maskEnabled}
+                  />
                 </div>
               </>
             )}

@@ -286,6 +286,109 @@ export async function exportFinalPDF(
           })
         }
       }
+
+      // ===== PDF TEXT REPLACEMENTS =====
+      if (pageData.textReplacements && pageData.textReplacements.length > 0) {
+        for (const replacement of pageData.textReplacements) {
+          const mapped = mapElementRect(
+            replacement,
+            { width: canvasWidth, height: canvasHeight },
+            { width: pageWidth, height: pageHeight },
+            useTransform ? metrics?.transform : undefined,
+          )
+
+          const font = await pdfDoc.embedFont(
+            getPdfStandardFont(
+              replacement.fontFamily ?? "Arial",
+              replacement.bold,
+              replacement.italic,
+            ),
+          )
+          const color = hexToRgb(replacement.color)
+          const scaledFontSize = replacement.fontSize * mapped.scale
+          const scaledLineHeight = Math.max(
+            1,
+            replacement.lineHeight * mapped.scale,
+          )
+          const scaledBaselineOffset = Math.max(
+            0,
+            Math.min(
+              mapped.height,
+              Math.max(
+                scaledFontSize * 0.65,
+                replacement.baselineOffset * mapped.scale,
+              ),
+            ),
+          )
+          const absoluteWidth = Math.max(0, mapped.width)
+          const absoluteHeight = Math.max(0, mapped.height)
+
+          if (
+            replacement.maskEnabled &&
+            !isTransparentColor(replacement.maskColor)
+          ) {
+            const mask = hexToRgb(replacement.maskColor)
+
+            page.drawRectangle({
+              x: mapped.x,
+              y: mapped.y,
+              width: mapped.width,
+              height: mapped.height,
+              color: rgb(mask.r, mask.g, mask.b),
+            })
+          }
+
+          if (!isTransparentColor(replacement.backgroundColor)) {
+            const background = hexToRgb(replacement.backgroundColor)
+
+            page.drawRectangle({
+              x: mapped.x,
+              y: mapped.y,
+              width: mapped.width,
+              height: mapped.height,
+              color: rgb(background.r, background.g, background.b),
+            })
+          }
+
+          const lines = wrapText(
+            normalizeLineBreaks(replacement.replacementText || ""),
+            font,
+            scaledFontSize,
+            absoluteWidth,
+          )
+          const maxLines =
+            scaledLineHeight > 0
+              ? Math.floor(absoluteHeight / scaledLineHeight)
+              : 0
+          const visibleLines = maxLines > 0 ? lines.slice(0, maxLines) : []
+          const baselineY = mapped.y + mapped.height - scaledBaselineOffset
+
+          visibleLines.forEach((line, index) => {
+            const lineWidth = font.widthOfTextAtSize(line, scaledFontSize)
+            let finalX = mapped.x
+
+            switch (replacement.textAlign) {
+              case "center":
+                finalX = mapped.x + (absoluteWidth - lineWidth) / 2
+                break
+              case "right":
+                finalX = mapped.x + absoluteWidth - lineWidth
+                break
+              case "left":
+              default:
+                break
+            }
+
+            page.drawText(line, {
+              x: finalX,
+              y: baselineY - index * scaledLineHeight,
+              size: scaledFontSize,
+              font,
+              color: rgb(color.r, color.g, color.b),
+            })
+          })
+        }
+      }
     }
 
     return pdfDoc.save()
@@ -489,6 +592,10 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
   const b = Number.parseInt(hex.substring(4, 6), 16) / 255
 
   return { r, g, b }
+}
+
+function isTransparentColor(color: string | undefined): boolean {
+  return !color || color.toLowerCase() === "transparent"
 }
 
 function normalizeLineBreaks(value: string): string {

@@ -62,12 +62,16 @@ describe("exportFinalPDF", () => {
           texts: [],
           highlights: [],
           arrows: [],
+          textReplacements: [],
+          extractedTextBlocks: [],
           footer: { number: "", detail: "" },
         },
         "page-b": {
           texts: [],
           highlights: [],
           arrows: [],
+          textReplacements: [],
+          extractedTextBlocks: [],
           footer: { number: "", detail: "" },
         },
       },
@@ -127,12 +131,16 @@ describe("exportFinalPDF", () => {
           texts: [],
           highlights: [],
           arrows: [],
+          textReplacements: [],
+          extractedTextBlocks: [],
           footer: { number: "", detail: "" },
         },
         "page-b": {
           texts: [],
           highlights: [],
           arrows: [],
+          textReplacements: [],
+          extractedTextBlocks: [],
           footer: { number: "", detail: "" },
         },
       },
@@ -161,5 +169,71 @@ describe("exportFinalPDF", () => {
     expect(pages[0].getHeight()).toBeCloseTo(300)
     expect(pages[1].getWidth()).toBeCloseTo(400)
     expect(pages[1].getHeight()).toBeCloseTo(500)
+  })
+
+  it("exports text replacements with transparent background", async () => {
+    const source = await PDFDocument.create()
+    source.addPage([200, 300])
+    const sourceBytes = await source.save()
+    const buffer = toArrayBuffer(sourceBytes)
+
+    const state: DocumentState = {
+      document: {
+        name: "transparent-text.pdf",
+        createdAt: new Date().toISOString(),
+        pageOrder: ["page-1"],
+      },
+      pages: {
+        "page-1": {
+          texts: [],
+          highlights: [],
+          arrows: [],
+          textReplacements: [
+            {
+              id: "replacement-1",
+              type: "pdf-text-replacement",
+              sourceBlockId: "block-1",
+              sourceText: "Neto",
+              replacementText: "Néto",
+              x: 20,
+              y: 30,
+              width: 60,
+              height: 14,
+              fontFamily: "Arial",
+              fontSize: 12,
+              lineHeight: 14,
+              baselineOffset: 10,
+              color: "#000000",
+              bold: false,
+              italic: false,
+              textAlign: "left",
+              backgroundColor: "transparent",
+              maskEnabled: true,
+              maskColor: "#ffffff",
+            },
+          ],
+          extractedTextBlocks: [],
+          footer: { number: "", detail: "" },
+        },
+      },
+      pagination: {
+        enabled: false,
+        position: "bottom-center",
+        startAt: 1,
+        backgroundBox: false,
+      },
+      language: "en",
+      coordinateSpace: "pdf",
+      originalPdfBytes: buffer,
+      originalPdfSources: [buffer],
+      pageMetrics: {
+        "page-1": { width: 200, height: 300, pageIndex: 0, sourceIndex: 0 },
+      },
+    }
+
+    const exportedBytes = await exportFinalPDF(state.originalPdfSources, state)
+    const exported = await PDFDocument.load(exportedBytes)
+
+    expect(exported.getPageCount()).toBe(1)
   })
 })

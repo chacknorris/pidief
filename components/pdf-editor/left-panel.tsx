@@ -108,7 +108,9 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
 
   const isFileDrag = (e: React.DragEvent) =>
     e.dataTransfer.files.length > 0 ||
-    Array.from(e.dataTransfer.items || []).some((item) => item.kind === "file") ||
+    Array.from(e.dataTransfer.items || []).some(
+      (item) => item.kind === "file",
+    ) ||
     Array.from(e.dataTransfer.types).includes("Files")
 
   const handleImportAtIndex = async (files: File[], insertAtIndex: number) => {
@@ -203,7 +205,8 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
       <div
         className={cn(
           "w-64 border-r border-border bg-sidebar p-4 transition-colors",
-          isExternalFileDrag && "bg-sidebar/80 ring-2 ring-primary/40 ring-inset",
+          isExternalFileDrag &&
+            "bg-sidebar/80 ring-2 ring-primary/40 ring-inset",
         )}
         onDragEnter={handleExternalDragEnter}
         onDragLeave={handleExternalDragLeave}
@@ -211,7 +214,9 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
         onDrop={handleExternalDropAtEnd}
       >
         <p className="text-sm text-muted-foreground">{copy.leftPanel.empty}</p>
-        <p className="mt-2 text-xs text-muted-foreground">{copy.leftPanel.dropPdf}</p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          {copy.leftPanel.dropPdf}
+        </p>
       </div>
     )
   }
