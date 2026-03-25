@@ -11,6 +11,9 @@ type Copy = {
   leftPanel: {
     pages: string
     empty: string
+    moveTo: string
+    move: string
+    dropPdf: string
   }
   canvas: {
     noPdfTitle: string
@@ -72,6 +75,9 @@ const copy: Record<Lang, Copy> = {
     leftPanel: {
       pages: "Pages",
       empty: "No PDF loaded",
+      moveTo: "Move to",
+      move: "Move",
+      dropPdf: "Drop PDF files here to insert pages",
     },
     canvas: {
       noPdfTitle: "No PDF loaded",
@@ -135,6 +141,9 @@ const copy: Record<Lang, Copy> = {
     leftPanel: {
       pages: "Páginas",
       empty: "No hay PDF cargado",
+      moveTo: "Mover a",
+      move: "Mover",
+      dropPdf: "Suelta archivos PDF aquí para insertar páginas",
     },
     canvas: {
       noPdfTitle: "No hay PDF cargado",

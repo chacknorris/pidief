@@ -25,9 +25,10 @@ export function TopBar({ pdfState }: TopBarProps) {
     const input = document.createElement("input")
     input.type = "file"
     input.accept = "application/pdf"
+    input.multiple = true
     input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0]
-      if (file) {
+      const files = Array.from((e.target as HTMLInputElement).files || [])
+      for (const file of files) {
         await loadPDF(file)
       }
     }

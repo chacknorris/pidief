@@ -4,6 +4,7 @@ import React from "react"
 import { useEffect, useRef, useState } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Copy, Trash2 } from "lucide-react"
 import type { PDFState } from "@/types/pdf"
 import { getPdfJs } from "@/lib/pdfjs"
@@ -21,12 +22,18 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
     setCurrentPageId,
     duplicatePage,
     deletePage,
+    movePageToIndex,
+    loadPDF,
     reorderPages,
   } = pdfState
   const copy = getCopy(state.language)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
+  const [moveTargets, setMoveTargets] = useState<Record<string, string>>({})
+  const [isExternalFileDrag, setIsExternalFileDrag] = useState(false)
+  const externalDragDepthRef = useRef(0)
   const pdfDocRef = useRef<Map<number, any> | null>(new Map())
   const [pdfDocVersion, setPdfDocVersion] = useState(0)
+  const pageOrder = state.document?.pageOrder ?? []
 
   useEffect(() => {
     let cancelled = false
@@ -99,12 +106,21 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
     }
   }, [state.originalPdfSources])
 
-  if (!state.document) {
-    return (
-      <div className="w-64 border-r border-border bg-sidebar p-4">
-        <p className="text-sm text-muted-foreground">{copy.leftPanel.empty}</p>
-      </div>
-    )
+  const isFileDrag = (e: React.DragEvent) =>
+    e.dataTransfer.files.length > 0 ||
+    Array.from(e.dataTransfer.items || []).some((item) => item.kind === "file") ||
+    Array.from(e.dataTransfer.types).includes("Files")
+
+  const handleImportAtIndex = async (files: File[], insertAtIndex: number) => {
+    let nextInsertIndex = insertAtIndex
+    for (const file of files) {
+      const isPdf =
+        file.type === "application/pdf" ||
+        file.name.toLowerCase().endsWith(".pdf")
+      if (!isPdf) continue
+      const insertedPages = await loadPDF(file, nextInsertIndex)
+      nextInsertIndex += insertedPages
+    }
   }
 
   const handleDragStart = (e: React.DragEvent, pageId: string) => {
@@ -119,6 +135,12 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
   }
 
   const handleDragOver = (e: React.DragEvent) => {
+    if (isFileDrag(e)) {
+      e.preventDefault()
+      e.dataTransfer.dropEffect = "copy"
+      return
+    }
+
     e.preventDefault()
     e.dataTransfer.dropEffect = "move"
   }
@@ -127,23 +149,91 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
     setDragOverId(pageId)
   }
 
-  const handleDrop = (e: React.DragEvent, targetPageId: string) => {
+  const handleDrop = async (e: React.DragEvent, targetPageId: string) => {
     e.preventDefault()
+    e.stopPropagation()
+    if (isFileDrag(e)) {
+      const targetIndex = pageOrder.indexOf(targetPageId)
+      const files = Array.from(e.dataTransfer.files || [])
+      await handleImportAtIndex(files, targetIndex)
+      setDragOverId(null)
+      setIsExternalFileDrag(false)
+      externalDragDepthRef.current = 0
+      setMoveTargets({})
+      return
+    }
+
     const draggedPageId = e.dataTransfer.getData("text/plain")
     if (draggedPageId !== targetPageId) {
       reorderPages(draggedPageId, targetPageId)
+      setMoveTargets({})
     }
     setDragOverId(null)
   }
 
-  const pageOrder = state.document.pageOrder
+  const handleExternalDragEnter = (e: React.DragEvent) => {
+    if (!isFileDrag(e)) return
+    externalDragDepthRef.current += 1
+    setIsExternalFileDrag(true)
+  }
+
+  const handleExternalDragLeave = (e: React.DragEvent) => {
+    if (!isFileDrag(e)) return
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+    externalDragDepthRef.current = Math.max(0, externalDragDepthRef.current - 1)
+    if (externalDragDepthRef.current === 0) {
+      setIsExternalFileDrag(false)
+      setDragOverId(null)
+    }
+  }
+
+  const handleExternalDropAtEnd = async (e: React.DragEvent) => {
+    if (!isFileDrag(e)) return
+    e.preventDefault()
+    const files = Array.from(e.dataTransfer.files || [])
+    await handleImportAtIndex(files, pageOrder.length)
+    setIsExternalFileDrag(false)
+    setDragOverId(null)
+    externalDragDepthRef.current = 0
+    setMoveTargets({})
+  }
+
+  if (!state.document) {
+    return (
+      <div
+        className={cn(
+          "w-64 border-r border-border bg-sidebar p-4 transition-colors",
+          isExternalFileDrag && "bg-sidebar/80 ring-2 ring-primary/40 ring-inset",
+        )}
+        onDragEnter={handleExternalDragEnter}
+        onDragLeave={handleExternalDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleExternalDropAtEnd}
+      >
+        <p className="text-sm text-muted-foreground">{copy.leftPanel.empty}</p>
+        <p className="mt-2 text-xs text-muted-foreground">{copy.leftPanel.dropPdf}</p>
+      </div>
+    )
+  }
 
   return (
-    <div className="flex min-h-0 w-64 flex-col border-r border-border bg-sidebar">
+    <div
+      className={cn(
+        "flex min-h-0 w-64 flex-col border-r border-border bg-sidebar transition-colors",
+        isExternalFileDrag && "bg-sidebar/80 ring-2 ring-primary/40 ring-inset",
+      )}
+      onDragEnter={handleExternalDragEnter}
+      onDragLeave={handleExternalDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleExternalDropAtEnd}
+    >
       <div className="border-b border-border p-3">
         <h2 className="text-sm font-semibold text-sidebar-foreground">
           {copy.leftPanel.pages}
         </h2>
+        {isExternalFileDrag && (
+          <p className="mt-2 text-xs text-primary">{copy.leftPanel.dropPdf}</p>
+        )}
       </div>
       <ScrollArea className="flex-1 min-h-0">
         <div className="space-y-2 p-3">
@@ -192,6 +282,54 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
                     <Trash2 className="h-3 w-3" />
                   </Button>
                 </div>
+              </div>
+              <div className="mb-2 flex items-center gap-2">
+                <span className="text-[11px] text-muted-foreground">
+                  {copy.leftPanel.moveTo}
+                </span>
+                <Input
+                  type="number"
+                  min={1}
+                  max={pageOrder.length}
+                  value={moveTargets[pageId] ?? String(index + 1)}
+                  className="h-7 w-16"
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) =>
+                    setMoveTargets((prev) => ({
+                      ...prev,
+                      [pageId]: e.target.value,
+                    }))
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter") return
+                    e.preventDefault()
+                    e.stopPropagation()
+                    const targetPosition = Number.parseInt(
+                      moveTargets[pageId] ?? String(index + 1),
+                      10,
+                    )
+                    if (Number.isNaN(targetPosition)) return
+                    movePageToIndex(pageId, targetPosition)
+                    setMoveTargets({})
+                  }}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2 text-[11px]"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    const targetPosition = Number.parseInt(
+                      moveTargets[pageId] ?? String(index + 1),
+                      10,
+                    )
+                    if (Number.isNaN(targetPosition)) return
+                    movePageToIndex(pageId, targetPosition)
+                    setMoveTargets({})
+                  }}
+                >
+                  {copy.leftPanel.move}
+                </Button>
               </div>
               <PageThumbnail
                 pageOrderIndex={index}

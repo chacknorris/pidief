@@ -2,6 +2,8 @@
 
 import { useState, useCallback, useRef, useEffect } from "react"
 import {
+  insertPagesIntoOrder,
+  movePageInOrder,
   cloneDocumentState,
   createEmptyPageData,
   createInitialDocumentState,
@@ -281,7 +283,7 @@ export function usePDFState(): PDFState {
   const clearSelection = useCallback(() => setSelectedElements([]), [])
 
   const loadPDF = useCallback(
-    async (file: File) => {
+    async (file: File, insertAtIndex?: number) => {
       try {
         // Read the file as ArrayBuffer
         const arrayBuffer = await file.arrayBuffer()
@@ -299,19 +301,15 @@ export function usePDFState(): PDFState {
         const pageCount = pdfDocument.numPages
         const pageOrder: string[] = []
         const pages: Record<string, PageData> = {}
-        const pageMetrics: Record<
+        const pageMetricsBase: Record<
           string,
           {
             width: number
             height: number
             pageIndex: number
-            sourceIndex: number
             transform?: number[]
           }
         > = {}
-
-        // Calculate source index to keep track of which PDF each page belongs to
-        const sourceIndex = state.originalPdfSources.length
 
         // Extract page metrics
         for (let i = 1; i <= pageCount; i++) {
@@ -321,25 +319,45 @@ export function usePDFState(): PDFState {
           const pageId = `page-${Date.now()}-${i}`
           pageOrder.push(pageId)
           pages[pageId] = createEmptyPageData()
-          pageMetrics[pageId] = {
+          pageMetricsBase[pageId] = {
             width: viewport.width,
             height: viewport.height,
             pageIndex: i - 1, // zero-based index to reference the original PDF page
-            sourceIndex,
             transform: Array.from(viewport.transform || []),
           }
         }
 
+        let insertedFirstPageId: string | null = null
         setState((prev) => {
           pushHistory(prev)
           const isFirst = !prev.document
+          const sourceIndex = prev.originalPdfSources.length
+          const pageMetrics = Object.fromEntries(
+            Object.entries(pageMetricsBase).map(([pageId, metrics]) => [
+              pageId,
+              {
+                ...metrics,
+                sourceIndex,
+              },
+            ]),
+          )
+          const insertionIndex = isFirst
+            ? 0
+            : typeof insertAtIndex === "number"
+              ? insertAtIndex
+              : prev.document!.pageOrder.length
           const mergedPageOrder = isFirst
             ? pageOrder
-            : [...prev.document!.pageOrder, ...pageOrder]
+            : insertPagesIntoOrder(
+                prev.document!.pageOrder,
+                pageOrder,
+                insertionIndex,
+              )
           const mergedPages = isFirst ? pages : { ...prev.pages, ...pages }
           const mergedMetrics = isFirst
             ? pageMetrics
             : { ...prev.pageMetrics, ...pageMetrics }
+          insertedFirstPageId = pageOrder[0] ?? null
 
           return {
             document: isFirst
@@ -362,13 +380,15 @@ export function usePDFState(): PDFState {
             pageMetrics: mergedMetrics,
           }
         })
-        setCurrentPageId((prev) => prev ?? pageOrder[0])
+        setCurrentPageId((prev) => prev ?? insertedFirstPageId)
+        return pageCount
       } catch (error) {
         console.error("Failed to load PDF:", error)
         alert("Failed to load PDF. Please try again.")
+        return 0
       }
     },
-    [state.originalPdfSources.length],
+    [pushHistory],
   )
 
   const saveState = useCallback(() => serializeDocumentState(state), [state])
@@ -670,27 +690,62 @@ export function usePDFState(): PDFState {
     [setCurrentPageId, setSelectedElements],
   )
 
-  const reorderPages = useCallback((draggedId: string, targetId: string) => {
-    setState((prev) => {
-      if (!prev.document) return prev
+  const movePageToIndex = useCallback(
+    (pageId: string, targetPosition: number) => {
+      setState((prev) => {
+        if (!prev.document) return prev
 
-      pushHistory(prev)
-      const newPageOrder = [...prev.document.pageOrder]
-      const draggedIndex = newPageOrder.indexOf(draggedId)
-      const targetIndex = newPageOrder.indexOf(targetId)
+        const nextPageOrder = movePageInOrder(
+          prev.document.pageOrder,
+          pageId,
+          Math.max(0, targetPosition - 1),
+        )
 
-      newPageOrder.splice(draggedIndex, 1)
-      newPageOrder.splice(targetIndex, 0, draggedId)
+        if (nextPageOrder.join("|") === prev.document.pageOrder.join("|")) {
+          return prev
+        }
 
-      return {
-        ...prev,
-        document: {
-          ...prev.document,
-          pageOrder: newPageOrder,
-        },
-      }
-    })
-  }, [])
+        pushHistory(prev)
+        return {
+          ...prev,
+          document: {
+            ...prev.document,
+            pageOrder: nextPageOrder,
+          },
+        }
+      })
+    },
+    [pushHistory],
+  )
+
+  const reorderPages = useCallback(
+    (draggedId: string, targetId: string) => {
+      setState((prev) => {
+        if (!prev.document) return prev
+
+        const targetIndex = prev.document.pageOrder.indexOf(targetId)
+        if (targetIndex < 0) return prev
+        const newPageOrder = movePageInOrder(
+          prev.document.pageOrder,
+          draggedId,
+          targetIndex,
+        )
+        if (newPageOrder.join("|") === prev.document.pageOrder.join("|")) {
+          return prev
+        }
+
+        pushHistory(prev)
+        return {
+          ...prev,
+          document: {
+            ...prev.document,
+            pageOrder: newPageOrder,
+          },
+        }
+      })
+    },
+    [pushHistory],
+  )
 
   const updatePagination = useCallback(
     (updates: Partial<DocumentState["pagination"]>) => {
@@ -813,6 +868,7 @@ export function usePDFState(): PDFState {
     deleteElements,
     duplicatePage,
     deletePage,
+    movePageToIndex,
     reorderPages,
     updatePagination,
     updatePageFooter,

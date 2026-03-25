@@ -98,7 +98,7 @@ export interface PDFState {
   currentPageId: string | null
   selectedElements: string[]
   addMode: "text" | null
-  loadPDF: (file: File) => Promise<void>
+  loadPDF: (file: File, insertAtIndex?: number) => Promise<number>
   saveState: () => string
   loadState: (json: string) => void
   exportPDF: () => Promise<void>
@@ -115,6 +115,7 @@ export interface PDFState {
   deleteElements: (ids: string[]) => void
   duplicatePage: (pageId: string) => void
   deletePage: (pageId: string) => void
+  movePageToIndex: (pageId: string, targetPosition: number) => void
   reorderPages: (draggedId: string, targetId: string) => void
   updatePagination: (updates: Partial<DocumentState["pagination"]>) => void
   updatePageFooter: (pageId: string, updates: Partial<PageFooter>) => void

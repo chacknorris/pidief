@@ -55,3 +55,42 @@ export function cloneDocumentState(state: DocumentState): DocumentState {
     pageMetrics: { ...state.pageMetrics },
   }
 }
+
+export function clampPageInsertIndex(
+  length: number,
+  targetIndex: number,
+): number {
+  return Math.max(0, Math.min(targetIndex, length))
+}
+
+export function movePageInOrder(
+  pageOrder: string[],
+  pageId: string,
+  targetIndex: number,
+): string[] {
+  const currentIndex = pageOrder.indexOf(pageId)
+  if (currentIndex < 0) return pageOrder
+
+  const nextPageOrder = [...pageOrder]
+  nextPageOrder.splice(currentIndex, 1)
+  nextPageOrder.splice(
+    clampPageInsertIndex(nextPageOrder.length, targetIndex),
+    0,
+    pageId,
+  )
+  return nextPageOrder
+}
+
+export function insertPagesIntoOrder(
+  pageOrder: string[],
+  pageIds: string[],
+  targetIndex: number,
+): string[] {
+  const nextPageOrder = [...pageOrder]
+  nextPageOrder.splice(
+    clampPageInsertIndex(nextPageOrder.length, targetIndex),
+    0,
+    ...pageIds,
+  )
+  return nextPageOrder
+}
