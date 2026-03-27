@@ -1,5 +1,9 @@
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib"
 import type { DocumentState } from "@/types/pdf"
+import {
+  encodeStringAsUtf8,
+  PIDIEF_STATE_ATTACHMENT_NAME,
+} from "./editable-pdf"
 import { getPdfStandardFont } from "./text-fonts"
 
 const EDITOR_TEXT_BORDER_WIDTH = 2
@@ -296,6 +300,17 @@ export async function exportFinalPDF(
             { width: pageWidth, height: pageHeight },
             useTransform ? metrics?.transform : undefined,
           )
+          const mappedSourceRect = mapElementRect(
+            {
+              x: replacement.sourceX ?? replacement.x,
+              y: replacement.sourceY ?? replacement.y,
+              width: replacement.sourceWidth ?? replacement.width,
+              height: replacement.sourceHeight ?? replacement.height,
+            },
+            { width: canvasWidth, height: canvasHeight },
+            { width: pageWidth, height: pageHeight },
+            useTransform ? metrics?.transform : undefined,
+          )
 
           const font = await pdfDoc.embedFont(
             getPdfStandardFont(
@@ -330,10 +345,10 @@ export async function exportFinalPDF(
             const mask = hexToRgb(replacement.maskColor)
 
             page.drawRectangle({
-              x: mapped.x,
-              y: mapped.y,
-              width: mapped.width,
-              height: mapped.height,
+              x: mappedSourceRect.x,
+              y: mappedSourceRect.y,
+              width: mappedSourceRect.width,
+              height: mappedSourceRect.height,
               color: rgb(mask.r, mask.g, mask.b),
             })
           }
@@ -396,6 +411,28 @@ export async function exportFinalPDF(
     console.error("Failed to export PDF:", error)
     throw error
   }
+}
+
+export async function exportEditablePDF(
+  originalPdfSources: ArrayBuffer[],
+  documentState: DocumentState,
+  serializedState: string,
+): Promise<Uint8Array> {
+  const finalPdf = await exportFinalPDF(originalPdfSources, documentState)
+  const pdfDoc = await PDFDocument.load(finalPdf)
+
+  await pdfDoc.attach(
+    encodeStringAsUtf8(serializedState),
+    PIDIEF_STATE_ATTACHMENT_NAME,
+    {
+      mimeType: "application/json",
+      description: "PIDIEF editable state",
+      creationDate: new Date(),
+      modificationDate: new Date(),
+    },
+  )
+
+  return pdfDoc.save()
 }
 
 /**

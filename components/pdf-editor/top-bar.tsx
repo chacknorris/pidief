@@ -11,14 +11,22 @@ import {
 import { FileUp, FileDown, Download, FolderOpen } from "lucide-react"
 import type { PDFState } from "@/types/pdf"
 import { getCopy } from "@/lib/i18n"
+import { saveBlobToUserDestination } from "@/lib/file-save"
 
 interface TopBarProps {
   pdfState: PDFState
 }
 
 export function TopBar({ pdfState }: TopBarProps) {
-  const { loadPDF, exportPDF, state, updateLanguage, saveState, loadState } =
-    pdfState
+  const {
+    loadPDF,
+    exportPDF,
+    exportEditablePDF,
+    state,
+    updateLanguage,
+    saveState,
+    loadState,
+  } = pdfState
   const copy = getCopy(state.language)
 
   const handleImportPDF = () => {
@@ -35,28 +43,22 @@ export function TopBar({ pdfState }: TopBarProps) {
     input.click()
   }
 
-  const handleSaveJSON = () => {
+  const handleSaveJSON = async () => {
     const json = saveState()
     const suggested =
       state.document?.name?.replace(/\.pdf$/i, "") || "pdf-state"
-    const desired =
-      typeof window !== "undefined"
-        ? window.prompt(
-            copy.topBar.savePrompt ?? "Nombre del archivo",
-            `${suggested}.json`,
-          )
-        : `${suggested}.json`
-    const fileName =
-      desired && desired.trim()
-        ? desired.trim().replace(/\.json$/i, "") + ".json"
-        : `${suggested}.json`
     const blob = new Blob([json], { type: "application/json" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = fileName
-    a.click()
-    URL.revokeObjectURL(url)
+    await saveBlobToUserDestination(blob, {
+      suggestedName: `${suggested}.json`,
+      types: [
+        {
+          description: "JSON",
+          accept: {
+            "application/json": [".json"],
+          },
+        },
+      ],
+    })
   }
 
   const handleLoadJSON = () => {
@@ -88,6 +90,15 @@ export function TopBar({ pdfState }: TopBarProps) {
       >
         <FileDown className="mr-2 h-4 w-4" />
         {copy.topBar.export}
+      </Button>
+      <Button
+        onClick={exportEditablePDF}
+        variant="outline"
+        size="sm"
+        disabled={!state.originalPdfSources.length}
+      >
+        <Download className="mr-2 h-4 w-4" />
+        {copy.topBar.exportEditable}
       </Button>
       <div className="ml-auto">
         <DropdownMenu>

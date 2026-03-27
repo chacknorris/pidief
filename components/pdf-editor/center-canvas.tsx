@@ -760,7 +760,7 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => setZoom(Math.min(2, zoom + 0.1))}
+            onClick={() => setZoom(Math.min(2.5, zoom + 0.1))}
           >
             <ZoomIn className="h-4 w-4" />
           </Button>
@@ -1060,8 +1060,12 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
                 {replacement.maskEnabled &&
                   !isTransparentColor(replacement.maskColor) && (
                     <div
-                      className="pointer-events-none absolute inset-0"
+                      className="pointer-events-none absolute"
                       style={{
+                        left: replacement.sourceX - replacement.x,
+                        top: replacement.sourceY - replacement.y,
+                        width: replacement.sourceWidth,
+                        height: replacement.sourceHeight,
                         backgroundColor: replacement.maskColor,
                       }}
                     />

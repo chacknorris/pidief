@@ -16,6 +16,8 @@ export interface PdfTextBlock {
   lineHeight: number
   baselineOffset: number
   fontFamily: TextFontFamily
+  color: string
+  backgroundColor: string
   sourceFontName: string | null
   sourceFontFamily: string | null
   bold: boolean
@@ -76,6 +78,10 @@ export interface PdfTextReplacementElement {
   y: number
   width: number
   height: number
+  sourceX: number
+  sourceY: number
+  sourceWidth: number
+  sourceHeight: number
   fontFamily: TextFontFamily
   fontSize: number
   lineHeight: number
@@ -144,6 +150,12 @@ export interface PDFState {
   saveState: () => string
   loadState: (json: string) => void
   exportPDF: () => Promise<void>
+  exportEditablePDF: () => Promise<void>
+  exportPagePDF: (pageId: string) => Promise<void>
+  extractPage: (pageId: string) => Promise<void>
+  buildPageExport: (
+    pageId: string,
+  ) => Promise<{ blob: Blob; fileName: string } | null>
   setCurrentPageId: (id: string) => void
   setSelectedElements: (ids: string[]) => void
   toggleElementSelection: (id: string, additive: boolean) => void

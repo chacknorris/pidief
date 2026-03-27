@@ -16,6 +16,13 @@ interface PdfJsTextStyle {
   descent?: number
 }
 
+interface SampledPixel {
+  r: number
+  g: number
+  b: number
+  weight: number
+}
+
 function round(value: number): number {
   return Math.round(value * 100) / 100
 }
@@ -54,6 +61,193 @@ function getBlockId(
   text: string,
 ): string {
   return `text-block-${index}-${round(x)}-${round(y)}-${round(width)}-${text.length}`
+}
+
+function componentToHex(value: number): string {
+  return Math.max(0, Math.min(255, Math.round(value)))
+    .toString(16)
+    .padStart(2, "0")
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  return `#${componentToHex(r)}${componentToHex(g)}${componentToHex(b)}`
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const normalized = hex.replace(/^#/, "")
+  const expanded =
+    normalized.length === 3
+      ? normalized
+          .split("")
+          .map((char) => char + char)
+          .join("")
+      : normalized
+
+  return {
+    r: Number.parseInt(expanded.substring(0, 2), 16),
+    g: Number.parseInt(expanded.substring(2, 4), 16),
+    b: Number.parseInt(expanded.substring(4, 6), 16),
+  }
+}
+
+function getPixelLuminance(r: number, g: number, b: number): number {
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+function getColorDistance(
+  r1: number,
+  g1: number,
+  b1: number,
+  r2: number,
+  g2: number,
+  b2: number,
+): number {
+  return Math.hypot(r1 - r2, g1 - g2, b1 - b2)
+}
+
+export function inferTextBlockColor(
+  imageData:
+    | ImageData
+    | { data: Uint8ClampedArray; width: number; height: number },
+  block: Pick<PdfTextBlock, "x" | "y" | "width" | "height">,
+  backgroundColor?: string,
+): string {
+  const startX = Math.max(0, Math.floor(block.x))
+  const startY = Math.max(0, Math.floor(block.y))
+  const endX = Math.min(imageData.width, Math.ceil(block.x + block.width))
+  const endY = Math.min(imageData.height, Math.ceil(block.y + block.height))
+  const background = hexToRgb(backgroundColor ?? "#ffffff")
+
+  const samples: SampledPixel[] = []
+
+  for (let y = startY; y < endY; y += 1) {
+    for (let x = startX; x < endX; x += 1) {
+      const index = (y * imageData.width + x) * 4
+      const alpha = imageData.data[index + 3]
+      if (alpha < 24) continue
+
+      const r = imageData.data[index]
+      const g = imageData.data[index + 1]
+      const b = imageData.data[index + 2]
+      const distanceFromBackground = getColorDistance(
+        r,
+        g,
+        b,
+        background.r,
+        background.g,
+        background.b,
+      )
+      const luminance = getPixelLuminance(r, g, b)
+      const luminanceDistance = Math.abs(
+        luminance - getPixelLuminance(background.r, background.g, background.b),
+      )
+      const weight = distanceFromBackground * 2 + luminanceDistance
+
+      if (weight < 20) continue
+
+      samples.push({ r, g, b, weight })
+    }
+  }
+
+  if (!samples.length) return "#000000"
+
+  let totalWeight = 0
+  let weightedR = 0
+  let weightedG = 0
+  let weightedB = 0
+
+  for (const sample of samples) {
+    totalWeight += sample.weight
+    weightedR += sample.r * sample.weight
+    weightedG += sample.g * sample.weight
+    weightedB += sample.b * sample.weight
+  }
+
+  if (!totalWeight) return "#000000"
+
+  return rgbToHex(
+    weightedR / totalWeight,
+    weightedG / totalWeight,
+    weightedB / totalWeight,
+  )
+}
+
+export function inferTextBlockBackgroundColor(
+  imageData:
+    | ImageData
+    | { data: Uint8ClampedArray; width: number; height: number },
+  block: Pick<PdfTextBlock, "x" | "y" | "width" | "height" | "fontSize">,
+): string {
+  const padding = Math.max(2, Math.round(block.fontSize * 0.25))
+  const startX = Math.max(0, Math.floor(block.x - padding))
+  const startY = Math.max(0, Math.floor(block.y - padding))
+  const endX = Math.min(
+    imageData.width,
+    Math.ceil(block.x + block.width + padding),
+  )
+  const endY = Math.min(
+    imageData.height,
+    Math.ceil(block.y + block.height + padding),
+  )
+  const innerStartX = Math.max(0, Math.floor(block.x))
+  const innerStartY = Math.max(0, Math.floor(block.y))
+  const innerEndX = Math.min(imageData.width, Math.ceil(block.x + block.width))
+  const innerEndY = Math.min(
+    imageData.height,
+    Math.ceil(block.y + block.height),
+  )
+
+  let totalWeight = 0
+  let weightedR = 0
+  let weightedG = 0
+  let weightedB = 0
+
+  for (let y = startY; y < endY; y += 1) {
+    for (let x = startX; x < endX; x += 1) {
+      const insideSourceRect =
+        x >= innerStartX && x < innerEndX && y >= innerStartY && y < innerEndY
+      if (insideSourceRect) continue
+
+      const index = (y * imageData.width + x) * 4
+      const alpha = imageData.data[index + 3]
+      if (alpha < 24) continue
+
+      const r = imageData.data[index]
+      const g = imageData.data[index + 1]
+      const b = imageData.data[index + 2]
+      const weight = alpha / 255
+
+      totalWeight += weight
+      weightedR += r * weight
+      weightedG += g * weight
+      weightedB += b * weight
+    }
+  }
+
+  if (!totalWeight) return "#ffffff"
+
+  return rgbToHex(
+    weightedR / totalWeight,
+    weightedG / totalWeight,
+    weightedB / totalWeight,
+  )
+}
+
+export function inferTextBlockColors(
+  blocks: PdfTextBlock[],
+  imageData:
+    | ImageData
+    | { data: Uint8ClampedArray; width: number; height: number },
+): PdfTextBlock[] {
+  return blocks
+    .map((block) => ({
+      ...block,
+      backgroundColor: inferTextBlockBackgroundColor(imageData, block),
+    }))
+    .map((block) => ({
+      ...block,
+      color: inferTextBlockColor(imageData, block, block.backgroundColor),
+    }))
 }
 
 export function extractTextBlocksFromPage(
@@ -117,6 +311,8 @@ export function extractTextBlocksFromPage(
         lineHeight,
         baselineOffset,
         fontFamily,
+        color: "#000000",
+        backgroundColor: "#ffffff",
         sourceFontName: item.fontName ?? null,
         sourceFontFamily: style?.fontFamily ?? null,
         bold,

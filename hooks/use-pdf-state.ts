@@ -9,8 +9,14 @@ import {
   createInitialDocumentState,
 } from "../lib/pdf-state"
 import { getPdfJs } from "../lib/pdfjs"
-import { extractTextBlocksFromPage } from "../lib/pdf-text"
+import { findPidiefStateAttachment } from "../lib/editable-pdf"
+import { saveBlobToUserDestination } from "../lib/file-save"
+import {
+  extractTextBlocksFromPage,
+  inferTextBlockColors,
+} from "../lib/pdf-text"
 import { isTextFontFamily } from "../lib/text-fonts"
+import { getCopy } from "../lib/i18n"
 import type {
   ArrowElement,
   DocumentState,
@@ -188,6 +194,30 @@ export function deserializeDocumentState(
                   replacement.textAlign === "right"
                     ? replacement.textAlign
                     : "left",
+                sourceX:
+                  typeof replacement.sourceX === "number"
+                    ? replacement.sourceX
+                    : typeof replacement.x === "number"
+                      ? replacement.x
+                      : 0,
+                sourceY:
+                  typeof replacement.sourceY === "number"
+                    ? replacement.sourceY
+                    : typeof replacement.y === "number"
+                      ? replacement.y
+                      : 0,
+                sourceWidth:
+                  typeof replacement.sourceWidth === "number"
+                    ? replacement.sourceWidth
+                    : typeof replacement.width === "number"
+                      ? replacement.width
+                      : 0,
+                sourceHeight:
+                  typeof replacement.sourceHeight === "number"
+                    ? replacement.sourceHeight
+                    : typeof replacement.height === "number"
+                      ? replacement.height
+                      : 0,
                 backgroundColor:
                   typeof replacement.backgroundColor === "string"
                     ? replacement.backgroundColor
@@ -223,6 +253,12 @@ export function deserializeDocumentState(
                 fontFamily: isTextFontFamily(block.fontFamily)
                   ? block.fontFamily
                   : "Arial",
+                color:
+                  typeof block.color === "string" ? block.color : "#000000",
+                backgroundColor:
+                  typeof block.backgroundColor === "string"
+                    ? block.backgroundColor
+                    : "#ffffff",
                 sourceFontName:
                   typeof block.sourceFontName === "string"
                     ? block.sourceFontName
@@ -281,6 +317,10 @@ export function deserializeDocumentState(
         y: replacement.y * scale,
         width: replacement.width * scale,
         height: replacement.height * scale,
+        sourceX: replacement.sourceX * scale,
+        sourceY: replacement.sourceY * scale,
+        sourceWidth: replacement.sourceWidth * scale,
+        sourceHeight: replacement.sourceHeight * scale,
         fontSize: replacement.fontSize * scale,
         lineHeight: replacement.lineHeight * scale,
         baselineOffset: replacement.baselineOffset * scale,
@@ -360,6 +400,7 @@ export function usePDFState(): PDFState {
   const [selectedElements, setSelectedElements] = useState<string[]>([])
   const [addMode, setAddMode] = useState<PDFState["addMode"]>(null)
   const historyRef = useRef<DocumentState[]>([])
+  const copy = getCopy(state.language)
 
   const pushHistory = useCallback((snapshot: DocumentState) => {
     historyRef.current = [
@@ -399,6 +440,32 @@ export function usePDFState(): PDFState {
         // Use a clone for pdf.js to avoid detaching the stored buffer
         const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer.slice(0) })
         const pdfDocument = await loadingTask.promise
+        const embeddedStateJson = findPidiefStateAttachment(
+          await pdfDocument.getAttachments(),
+        )
+
+        if (
+          !state.document &&
+          typeof insertAtIndex !== "number" &&
+          embeddedStateJson
+        ) {
+          const restored = deserializeDocumentState(embeddedStateJson)
+          if (restored) {
+            setState({
+              ...restored.state,
+              document: restored.state.document
+                ? {
+                    ...restored.state.document,
+                    name: file.name,
+                  }
+                : restored.state.document,
+            })
+            setCurrentPageId(restored.currentPageId)
+            setSelectedElements([])
+            setAddMode(null)
+            return restored.state.document?.pageOrder.length ?? 0
+          }
+        }
 
         const pageCount = pdfDocument.numPages
         const pageOrder: string[] = []
@@ -418,33 +485,64 @@ export function usePDFState(): PDFState {
           const page = await pdfDocument.getPage(i)
           const viewport = page.getViewport({ scale: 1.0 })
           const textContent = await page.getTextContent()
+          let extractedTextBlocks = extractTextBlocksFromPage(
+            textContent.items as Array<{
+              str?: string
+              transform?: number[]
+              width?: number
+              height?: number
+              fontName?: string
+              hasEOL?: boolean
+            }>,
+            textContent.styles as Record<
+              string,
+              {
+                fontFamily?: string
+                ascent?: number
+                descent?: number
+              }
+            >,
+            {
+              transform: Array.from(viewport.transform || []),
+            },
+            pdfjsLib,
+          )
+
+          if (
+            typeof document !== "undefined" &&
+            extractedTextBlocks.length > 0
+          ) {
+            const colorCanvas = document.createElement("canvas")
+            colorCanvas.width = Math.ceil(viewport.width)
+            colorCanvas.height = Math.ceil(viewport.height)
+            const colorContext = colorCanvas.getContext("2d", {
+              willReadFrequently: true,
+            })
+
+            if (colorContext) {
+              await page.render({
+                canvas: colorCanvas,
+                canvasContext: colorContext,
+                viewport,
+              }).promise
+
+              extractedTextBlocks = inferTextBlockColors(
+                extractedTextBlocks,
+                colorContext.getImageData(
+                  0,
+                  0,
+                  colorCanvas.width,
+                  colorCanvas.height,
+                ),
+              )
+            }
+          }
 
           const pageId = `page-${Date.now()}-${i}`
           pageOrder.push(pageId)
           pages[pageId] = {
             ...createEmptyPageData(),
-            extractedTextBlocks: extractTextBlocksFromPage(
-              textContent.items as Array<{
-                str?: string
-                transform?: number[]
-                width?: number
-                height?: number
-                fontName?: string
-                hasEOL?: boolean
-              }>,
-              textContent.styles as Record<
-                string,
-                {
-                  fontFamily?: string
-                  ascent?: number
-                  descent?: number
-                }
-              >,
-              {
-                transform: Array.from(viewport.transform || []),
-              },
-              pdfjsLib,
-            ),
+            extractedTextBlocks,
           }
           pageMetricsBase[pageId] = {
             width: viewport.width,
@@ -515,7 +613,7 @@ export function usePDFState(): PDFState {
         return 0
       }
     },
-    [pushHistory],
+    [pushHistory, state.document],
   )
 
   const saveState = useCallback(() => serializeDocumentState(state), [state])
@@ -619,17 +717,21 @@ export function usePDFState(): PDFState {
           y: sourceBlock.y,
           width: sourceBlock.width,
           height: sourceBlock.height,
+          sourceX: sourceBlock.x,
+          sourceY: sourceBlock.y,
+          sourceWidth: sourceBlock.width,
+          sourceHeight: sourceBlock.height,
           fontFamily: sourceBlock.fontFamily,
           fontSize: sourceBlock.fontSize,
           lineHeight: sourceBlock.lineHeight,
           baselineOffset: sourceBlock.baselineOffset,
-          color: "#000000",
+          color: sourceBlock.color,
           bold: sourceBlock.bold,
           italic: sourceBlock.italic,
           textAlign: "left",
           backgroundColor: "transparent",
           maskEnabled: true,
-          maskColor: "#ffffff",
+          maskColor: sourceBlock.backgroundColor,
         }
 
         pushHistory(prev)
@@ -1003,32 +1105,185 @@ export function usePDFState(): PDFState {
       // Ask for filename, fallback to original name with suffix
       const defaultName =
         state.document.name.replace(/\.pdf$/i, "") + "-edited.pdf"
-      const desiredName =
-        typeof window !== "undefined"
-          ? window.prompt("Nombre del archivo a exportar:", defaultName)
-          : defaultName
-      const fileName =
-        desiredName && desiredName.trim()
-          ? desiredName.trim().replace(/\.pdf$/i, "") + ".pdf"
-          : defaultName
-
-      // Download the PDF
       const downloadablePdf = pdfBytes.buffer.slice(
         pdfBytes.byteOffset,
         pdfBytes.byteOffset + pdfBytes.byteLength,
       ) as ArrayBuffer
       const blob = new Blob([downloadablePdf], { type: "application/pdf" })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = fileName
-      a.click()
-      URL.revokeObjectURL(url)
+      const saved = await saveBlobToUserDestination(blob, {
+        suggestedName: defaultName,
+        types: [
+          {
+            description: "PDF",
+            accept: {
+              "application/pdf": [".pdf"],
+            },
+          },
+        ],
+      })
+      if (!saved) return
     } catch (error) {
       console.error("Failed to export PDF:", error)
       alert("Failed to export PDF. Please try again.")
     }
   }, [state])
+
+  const buildPageExport = useCallback(
+    async (pageId: string) => {
+      if (!state.originalPdfSources.length || !state.document) {
+        return null
+      }
+
+      const page = state.pages[pageId]
+      const metric = state.pageMetrics[pageId]
+      if (!page || !metric) return null
+
+      const { exportFinalPDF } = await import("@/lib/pdf-export")
+
+      const pageLabel = state.document.pageOrder.indexOf(pageId)
+      const baseName = state.document.name.replace(/\.pdf$/i, "")
+      const fileName =
+        pageLabel >= 0
+          ? `${baseName}-page-${pageLabel + 1}.pdf`
+          : `${baseName}-page.pdf`
+
+      const singlePageState: DocumentState = {
+        ...state,
+        document: {
+          ...state.document,
+          pageOrder: [pageId],
+        },
+        pages: {
+          [pageId]: page,
+        },
+        pageMetrics: {
+          [pageId]: metric,
+        },
+      }
+
+      const pdfBytes = await exportFinalPDF(
+        state.originalPdfSources,
+        singlePageState,
+      )
+      const downloadablePdf = pdfBytes.buffer.slice(
+        pdfBytes.byteOffset,
+        pdfBytes.byteOffset + pdfBytes.byteLength,
+      ) as ArrayBuffer
+
+      return {
+        blob: new Blob([downloadablePdf], { type: "application/pdf" }),
+        fileName,
+      }
+    },
+    [state],
+  )
+
+  const exportPagePDF = useCallback(
+    async (pageId: string) => {
+      try {
+        const result = await buildPageExport(pageId)
+        if (!result) {
+          alert("No page available to export")
+          return
+        }
+
+        const saved = await saveBlobToUserDestination(result.blob, {
+          suggestedName: result.fileName,
+          types: [
+            {
+              description: "PDF",
+              accept: {
+                "application/pdf": [".pdf"],
+              },
+            },
+          ],
+        })
+        if (!saved) return
+      } catch (error) {
+        console.error("Failed to export page PDF:", error)
+        alert("Failed to export page PDF. Please try again.")
+      }
+    },
+    [buildPageExport],
+  )
+
+  const extractPage = useCallback(
+    async (pageId: string) => {
+      if (!state.document || state.document.pageOrder.length === 1) {
+        alert("You need at least one page in the document")
+        return
+      }
+
+      try {
+        const result = await buildPageExport(pageId)
+        if (!result) {
+          alert("No page available to extract")
+          return
+        }
+
+        const saved = await saveBlobToUserDestination(result.blob, {
+          suggestedName: result.fileName,
+          types: [
+            {
+              description: "PDF",
+              accept: {
+                "application/pdf": [".pdf"],
+              },
+            },
+          ],
+        })
+        if (!saved) return
+
+        deletePage(pageId)
+      } catch (error) {
+        console.error("Failed to extract page:", error)
+        alert("Failed to extract page. Please try again.")
+      }
+    },
+    [buildPageExport, deletePage, state.document],
+  )
+
+  const exportEditablePDF = useCallback(async () => {
+    if (!state.originalPdfSources.length || !state.document) {
+      alert("No PDF loaded to export")
+      return
+    }
+
+    try {
+      const { exportEditablePDF: buildEditablePDF } =
+        await import("@/lib/pdf-export")
+
+      const serializedState = serializeDocumentState(state)
+      const pdfBytes = await buildEditablePDF(
+        state.originalPdfSources,
+        state,
+        serializedState,
+      )
+
+      const defaultName =
+        state.document.name.replace(/\.pdf$/i, "") + "-editable.pdf"
+      const downloadablePdf = pdfBytes.buffer.slice(
+        pdfBytes.byteOffset,
+        pdfBytes.byteOffset + pdfBytes.byteLength,
+      ) as ArrayBuffer
+      const blob = new Blob([downloadablePdf], { type: "application/pdf" })
+      const saved = await saveBlobToUserDestination(blob, {
+        suggestedName: defaultName,
+        types: [
+          {
+            description: "PDF",
+            accept: {
+              "application/pdf": [".pdf"],
+            },
+          },
+        ],
+      })
+      if (!saved) return
+    } catch (error) {
+      console.error("Failed to export editable PDF:", error)
+      alert("Failed to export editable PDF. Please try again.")
+    }
+  }, [copy.topBar.saveEditablePrompt, state])
 
   const undo = useCallback(() => {
     const snapshot = historyRef.current.pop()
@@ -1053,6 +1308,10 @@ export function usePDFState(): PDFState {
     saveState,
     loadState,
     exportPDF,
+    exportEditablePDF,
+    exportPagePDF,
+    extractPage,
+    buildPageExport,
     setCurrentPageId,
     setSelectedElements,
     toggleElementSelection,

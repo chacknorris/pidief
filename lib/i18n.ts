@@ -4,9 +4,11 @@ type Copy = {
   topBar: {
     import: string
     export: string
+    exportEditable: string
     menu: string
     language: string
     savePrompt?: string
+    saveEditablePrompt?: string
   }
   leftPanel: {
     pages: string
@@ -14,6 +16,8 @@ type Copy = {
     moveTo: string
     move: string
     dropPdf: string
+    dragCopyPreparing: string
+    dragCopyReady: string
   }
   canvas: {
     noPdfTitle: string
@@ -68,9 +72,11 @@ const copy: Record<Lang, Copy> = {
     topBar: {
       import: "Import PDF",
       export: "Export PDF",
+      exportEditable: "Save Editable PDF",
       menu: "Menu",
       language: "Language",
       savePrompt: "File name",
+      saveEditablePrompt: "Editable PDF name",
     },
     leftPanel: {
       pages: "Pages",
@@ -78,6 +84,8 @@ const copy: Record<Lang, Copy> = {
       moveTo: "Move to",
       move: "Move",
       dropPdf: "Drop PDF files here to insert pages",
+      dragCopyPreparing: "Preparing page copy...",
+      dragCopyReady: "Ready to drag a page copy",
     },
     canvas: {
       noPdfTitle: "No PDF loaded",
@@ -134,9 +142,11 @@ const copy: Record<Lang, Copy> = {
     topBar: {
       import: "Importar PDF",
       export: "Exportar PDF",
+      exportEditable: "Guardar PDF editable",
       menu: "Menú",
       language: "Idioma",
       savePrompt: "Nombre del archivo",
+      saveEditablePrompt: "Nombre del PDF editable",
     },
     leftPanel: {
       pages: "Páginas",
@@ -144,6 +154,8 @@ const copy: Record<Lang, Copy> = {
       moveTo: "Mover a",
       move: "Mover",
       dropPdf: "Suelta archivos PDF aquí para insertar páginas",
+      dragCopyPreparing: "Preparando copia de la página...",
+      dragCopyReady: "Listo para arrastrar una copia de la página",
     },
     canvas: {
       noPdfTitle: "No hay PDF cargado",

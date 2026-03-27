@@ -5,7 +5,12 @@ import { useEffect, useRef, useState } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Copy, Trash2 } from "lucide-react"
+import {
+  Copy,
+  Download,
+  GripVertical,
+  Trash2,
+} from "lucide-react"
 import type { PDFState } from "@/types/pdf"
 import { getPdfJs } from "@/lib/pdfjs"
 import { cn } from "@/lib/utils"
@@ -25,11 +30,23 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
     movePageToIndex,
     loadPDF,
     reorderPages,
+    exportPagePDF,
+    extractPage,
+    buildPageExport,
   } = pdfState
   const copy = getCopy(state.language)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
   const [moveTargets, setMoveTargets] = useState<Record<string, string>>({})
   const [isExternalFileDrag, setIsExternalFileDrag] = useState(false)
+  const [pageExportCache, setPageExportCache] = useState<
+    Record<string, { url: string; fileName: string; fingerprint: string }>
+  >({})
+  const [pageExportStatus, setPageExportStatus] = useState<
+    Record<string, "idle" | "preparing" | "ready">
+  >({})
+  const pageExportCacheRef = useRef<
+    Record<string, { url: string; fileName: string; fingerprint: string }>
+  >({})
   const externalDragDepthRef = useRef(0)
   const pdfDocRef = useRef<Map<number, any> | null>(new Map())
   const [pdfDocVersion, setPdfDocVersion] = useState(0)
@@ -106,6 +123,28 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
     }
   }, [state.originalPdfSources])
 
+  useEffect(() => {
+    return () => {
+      Object.values(pageExportCacheRef.current).forEach((entry) => {
+        URL.revokeObjectURL(entry.url)
+      })
+    }
+  }, [])
+
+  useEffect(() => {
+    pageExportCacheRef.current = pageExportCache
+  }, [pageExportCache])
+
+  const getPageExportFingerprint = (pageId: string) =>
+    JSON.stringify({
+      page: state.pages[pageId],
+      metric: state.pageMetrics[pageId],
+      pageIndex: pageOrder.indexOf(pageId),
+      pagination: state.pagination,
+      coordinateSpace: state.coordinateSpace,
+      sourceCount: state.originalPdfSources.length,
+    })
+
   const isFileDrag = (e: React.DragEvent) =>
     e.dataTransfer.files.length > 0 ||
     Array.from(e.dataTransfer.items || []).some(
@@ -125,7 +164,8 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
     }
   }
 
-  const handleDragStart = (e: React.DragEvent, pageId: string) => {
+  const handleReorderDragStart = (e: React.DragEvent, pageId: string) => {
+    e.stopPropagation()
     e.dataTransfer.effectAllowed = "move"
     e.dataTransfer.setData("text/plain", pageId)
     e.currentTarget.classList.add("opacity-50")
@@ -134,6 +174,62 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
   const handleDragEnd = (e: React.DragEvent) => {
     e.currentTarget.classList.remove("opacity-50")
     setDragOverId(null)
+  }
+
+  const handleExportDragEnd = (e: React.DragEvent, pageId: string) => {
+    handleDragEnd(e)
+    if (e.dataTransfer.dropEffect !== "copy") return
+    if (pageOrder.length === 1) return
+    deletePage(pageId)
+  }
+
+  const primePageExport = async (pageId: string) => {
+    const fingerprint = getPageExportFingerprint(pageId)
+    const cached = pageExportCacheRef.current[pageId]
+    if (cached && cached.fingerprint === fingerprint) {
+      setPageExportStatus((prev) => ({ ...prev, [pageId]: "ready" }))
+      return cached
+    }
+
+    setPageExportStatus((prev) => ({ ...prev, [pageId]: "preparing" }))
+    const result = await buildPageExport(pageId)
+    if (!result) {
+      setPageExportStatus((prev) => ({ ...prev, [pageId]: "idle" }))
+      return null
+    }
+
+    const url = URL.createObjectURL(result.blob)
+    const nextValue = { url, fileName: result.fileName, fingerprint }
+    setPageExportCache((prev) => {
+      const previous = prev[pageId]
+      if (previous) {
+        URL.revokeObjectURL(previous.url)
+      }
+      return { ...prev, [pageId]: nextValue }
+    })
+    setPageExportStatus((prev) => ({ ...prev, [pageId]: "ready" }))
+    return nextValue
+  }
+
+  const handleExportDragStart = (
+    e: React.DragEvent,
+    pageId: string,
+    pageNumber: number,
+  ) => {
+    e.stopPropagation()
+    const cached = pageExportCacheRef.current[pageId]
+    if (!cached) {
+      e.preventDefault()
+      return
+    }
+
+    e.dataTransfer.effectAllowed = "copy"
+    e.dataTransfer.setData(
+      "DownloadURL",
+      `application/pdf:${cached.fileName}:${cached.url}`,
+    )
+    e.dataTransfer.setData("text/uri-list", cached.url)
+    e.dataTransfer.setData("text/plain", `Page ${pageNumber}`)
   }
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -246,8 +342,14 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
             <div
               key={pageId}
               draggable
-              onDragStart={(e) => handleDragStart(e, pageId)}
-              onDragEnd={handleDragEnd}
+              onMouseEnter={() => {
+                void primePageExport(pageId)
+              }}
+              onMouseDown={() => {
+                void primePageExport(pageId)
+              }}
+              onDragStart={(e) => handleExportDragStart(e, pageId, index + 1)}
+              onDragEnd={(e) => handleExportDragEnd(e, pageId)}
               onDragOver={handleDragOver}
               onDragEnter={() => handleDragEnter(pageId)}
               onDrop={(e) => handleDrop(e, pageId)}
@@ -263,6 +365,40 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
                   Page {index + 1}
                 </span>
                 <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                  <div
+                    className="flex h-6 w-6 cursor-move items-center justify-center rounded-sm text-muted-foreground hover:bg-accent"
+                    draggable
+                    onDragStart={(e) => handleReorderDragStart(e, pageId)}
+                    onDragEnd={handleDragEnd}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                    }}
+                    title={copy.leftPanel.move}
+                  >
+                    <GripVertical className="h-3 w-3" />
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 w-6 p-0"
+                    onMouseEnter={() => {
+                      void primePageExport(pageId)
+                    }}
+                    onMouseDown={() => {
+                      void primePageExport(pageId)
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void exportPagePDF(pageId)
+                    }}
+                    draggable
+                    onDragStart={(e) => {
+                      handleExportDragStart(e, pageId, index + 1)
+                    }}
+                    title={copy.leftPanel.dragCopyReady}
+                  >
+                    <Download className="h-3 w-3" />
+                  </Button>
                   <Button
                     size="sm"
                     variant="ghost"
@@ -288,6 +424,14 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
                   </Button>
                 </div>
               </div>
+              {pageExportStatus[pageId] &&
+                pageExportStatus[pageId] !== "idle" && (
+                  <p className="mb-2 text-[10px] text-muted-foreground">
+                    {pageExportStatus[pageId] === "preparing"
+                      ? copy.leftPanel.dragCopyPreparing
+                      : copy.leftPanel.dragCopyReady}
+                  </p>
+                )}
               <div className="mb-2 flex items-center gap-2">
                 <span className="text-[11px] text-muted-foreground">
                   {copy.leftPanel.moveTo}
