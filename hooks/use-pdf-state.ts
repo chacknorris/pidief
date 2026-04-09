@@ -11,6 +11,7 @@ import {
 import { getPdfJs } from "../lib/pdfjs"
 import { findPidiefStateAttachment } from "../lib/editable-pdf"
 import { saveBlobToUserDestination } from "../lib/file-save"
+import { createImageElementFromFile } from "../lib/image-utils"
 import {
   extractTextBlocksFromPage,
   inferTextBlockColors,
@@ -161,6 +162,32 @@ export function deserializeDocumentState(
               ...ar,
               angle: typeof ar.angle === "number" ? ar.angle : 0,
             })),
+            images: (page.images || [])
+              .filter((image: any) => image && typeof image.src === "string")
+              .map((image: any) => ({
+                ...image,
+                mimeType:
+                  image.mimeType === "image/png" ||
+                  image.mimeType === "image/jpeg"
+                    ? image.mimeType
+                    : "image/png",
+                originalWidth:
+                  typeof image.originalWidth === "number"
+                    ? image.originalWidth
+                    : typeof image.width === "number"
+                      ? image.width
+                      : 100,
+                originalHeight:
+                  typeof image.originalHeight === "number"
+                    ? image.originalHeight
+                    : typeof image.height === "number"
+                      ? image.height
+                      : 100,
+                lockedAspectRatio:
+                  typeof image.lockedAspectRatio === "boolean"
+                    ? image.lockedAspectRatio
+                    : true,
+              })),
             textReplacements: (page.textReplacements || []).map(
               (replacement: any) => ({
                 ...replacement,
@@ -310,6 +337,13 @@ export function deserializeDocumentState(
         height: arrow.height * scale,
         thickness: arrow.thickness * scale,
         angle: typeof arrow.angle === "number" ? arrow.angle : 0,
+      })),
+      images: page.images.map((image) => ({
+        ...image,
+        x: image.x * scale,
+        y: image.y * scale,
+        width: image.width * scale,
+        height: image.height * scale,
       })),
       textReplacements: page.textReplacements.map((replacement) => ({
         ...replacement,
@@ -688,6 +722,41 @@ export function usePDFState(): PDFState {
     [currentPageId, pushHistory],
   )
 
+  const addImageElement = useCallback(
+    async (file: File, position?: { x: number; y: number }) => {
+      if (!currentPageId) return
+
+      const pageMetrics = state.pageMetrics[currentPageId]
+      if (!pageMetrics) return
+
+      try {
+        const image = await createImageElementFromFile(file, {
+          width: pageMetrics.width,
+          height: pageMetrics.height,
+        }, position)
+
+        setState((prev) => {
+          pushHistory(prev)
+          return {
+            ...prev,
+            pages: {
+              ...prev.pages,
+              [currentPageId]: {
+                ...prev.pages[currentPageId],
+                images: [...(prev.pages[currentPageId]?.images || []), image],
+              },
+            },
+          }
+        })
+        setSelectedElements([image.id])
+      } catch (error) {
+        console.error("Failed to add image:", error)
+        alert("Failed to add image. Please use a PNG or JPG file.")
+      }
+    },
+    [currentPageId, pushHistory, state.pageMetrics],
+  )
+
   const addTextReplacementFromBlock = useCallback(
     (blockId: string) => {
       if (!currentPageId) return
@@ -842,6 +911,9 @@ export function usePDFState(): PDFState {
               arrows: page.arrows.map((el) =>
                 updates[el.id] ? { ...el, ...updates[el.id] } : el,
               ),
+              images: page.images.map((el) =>
+                updates[el.id] ? { ...el, ...updates[el.id] } : el,
+              ),
               textReplacements: page.textReplacements.map((el) =>
                 updates[el.id] ? { ...el, ...updates[el.id] } : el,
               ),
@@ -878,6 +950,7 @@ export function usePDFState(): PDFState {
               texts: page.texts.filter((el) => el.id !== id),
               highlights: page.highlights.filter((el) => el.id !== id),
               arrows: page.arrows.filter((el) => el.id !== id),
+              images: page.images.filter((el) => el.id !== id),
               textReplacements: page.textReplacements.filter(
                 (el) => el.id !== id,
               ),
@@ -907,6 +980,7 @@ export function usePDFState(): PDFState {
               texts: page.texts.filter((el) => !ids.includes(el.id)),
               highlights: page.highlights.filter((el) => !ids.includes(el.id)),
               arrows: page.arrows.filter((el) => !ids.includes(el.id)),
+              images: page.images.filter((el) => !ids.includes(el.id)),
               textReplacements: page.textReplacements.filter(
                 (el) => !ids.includes(el.id),
               ),
@@ -1317,6 +1391,7 @@ export function usePDFState(): PDFState {
     toggleElementSelection,
     setAddMode,
     addTextElement,
+    addImageElement,
     addTextReplacementFromBlock,
     addHighlight,
     addArrow,

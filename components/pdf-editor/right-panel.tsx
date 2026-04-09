@@ -1,5 +1,6 @@
 "use client"
 
+import { useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -24,6 +25,7 @@ import {
   AlignRight,
   AlignJustify,
   ArrowRight,
+  ImagePlus,
 } from "lucide-react"
 import type { PDFState } from "@/types/pdf"
 import { getCopy } from "@/lib/i18n"
@@ -42,6 +44,7 @@ export function RightPanel({ pdfState }: RightPanelProps) {
     updateElement,
     deleteElement,
     deleteElements,
+    addImageElement,
     addHighlight,
     addArrow,
     updatePagination,
@@ -55,6 +58,7 @@ export function RightPanel({ pdfState }: RightPanelProps) {
         ...(currentPage.texts || []),
         ...(currentPage.highlights || []),
         ...(currentPage.arrows || []),
+        ...(currentPage.images || []),
         ...(currentPage.textReplacements || []),
       ]
     : []
@@ -62,9 +66,26 @@ export function RightPanel({ pdfState }: RightPanelProps) {
   const element = allElements.find((el) => el.id === primaryElementId)
   const multiSelected = selectedElements.length > 1
   const footer = currentPage?.footer ?? { number: "", detail: "" }
+  const imageInputRef = useRef<HTMLInputElement | null>(null)
+
+  const handleAddImage = () => {
+    imageInputRef.current?.click()
+  }
 
   return (
     <div className="flex w-80 flex-col border-l border-border bg-sidebar">
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/png,image/jpeg"
+        className="hidden"
+        onChange={async (e) => {
+          const file = e.target.files?.[0]
+          if (!file) return
+          await addImageElement(file)
+          e.target.value = ""
+        }}
+      />
       <div className="border-b border-border p-3">
         <h2 className="text-sm font-semibold text-sidebar-foreground">
           {copy.rightPanel.properties}
@@ -77,7 +98,7 @@ export function RightPanel({ pdfState }: RightPanelProps) {
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {copy.rightPanel.addElement}
           </h3>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-5 gap-2">
             <Button
               size="sm"
               variant="outline"
@@ -122,6 +143,15 @@ export function RightPanel({ pdfState }: RightPanelProps) {
             >
               <ArrowRight className="h-4 w-4" />
               <span className="text-xs">{copy.rightPanel.arrow}</span>
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex flex-col gap-1 h-auto py-3 bg-transparent"
+              onClick={handleAddImage}
+            >
+              <ImagePlus className="h-4 w-4" />
+              <span className="text-xs">{copy.rightPanel.image}</span>
             </Button>
           </div>
         </div>
@@ -465,6 +495,78 @@ export function RightPanel({ pdfState }: RightPanelProps) {
                     }
                     className="h-8"
                     disabled={!element.maskEnabled}
+                  />
+                </div>
+              </>
+            )}
+
+            {element && "src" in element && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="imageWidth" className="text-xs">
+                    {copy.rightPanel.width}
+                  </Label>
+                  <Input
+                    id="imageWidth"
+                    type="number"
+                    value={Math.round(element.width)}
+                    onChange={(e) => {
+                      const nextWidth = Number.parseInt(e.target.value, 10)
+                      if (!Number.isFinite(nextWidth) || nextWidth <= 0) return
+
+                      updateElement(element.id, {
+                        width: nextWidth,
+                        ...(element.lockedAspectRatio
+                          ? {
+                              height:
+                                (nextWidth / element.originalWidth) *
+                                element.originalHeight,
+                            }
+                          : {}),
+                      })
+                    }}
+                    className="h-8"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="imageHeight" className="text-xs">
+                    {copy.rightPanel.height}
+                  </Label>
+                  <Input
+                    id="imageHeight"
+                    type="number"
+                    value={Math.round(element.height)}
+                    onChange={(e) => {
+                      const nextHeight = Number.parseInt(e.target.value, 10)
+                      if (!Number.isFinite(nextHeight) || nextHeight <= 0) {
+                        return
+                      }
+
+                      updateElement(element.id, {
+                        height: nextHeight,
+                        ...(element.lockedAspectRatio
+                          ? {
+                              width:
+                                (nextHeight / element.originalHeight) *
+                                element.originalWidth,
+                            }
+                          : {}),
+                      })
+                    }}
+                    className="h-8"
+                    disabled={element.lockedAspectRatio}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="imageAspectRatio" className="text-xs">
+                    {copy.rightPanel.lockAspectRatio}
+                  </Label>
+                  <Switch
+                    id="imageAspectRatio"
+                    checked={element.lockedAspectRatio}
+                    onCheckedChange={(checked) =>
+                      updateElement(element.id, { lockedAspectRatio: checked })
+                    }
                   />
                 </div>
               </>

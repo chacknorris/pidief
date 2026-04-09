@@ -52,6 +52,7 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
     addMode,
     setAddMode,
     addTextElement,
+    addImageElement,
     addTextReplacementFromBlock,
     updateElement,
     updateElements,
@@ -84,6 +85,9 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
   })
   const [resizeTargetId, setResizeTargetId] = useState<string | null>(null)
   const [resizeLockHeight, setResizeLockHeight] = useState(false)
+  const [resizeAspectRatio, setResizeAspectRatio] = useState<number | null>(
+    null,
+  )
   const [isRotating, setIsRotating] = useState(false)
   const [rotateTargetId, setRotateTargetId] = useState<string | null>(null)
   const selectionSnapshotRef = useRef<string[]>([])
@@ -104,6 +108,7 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
   })
   const [isSpacePressed, setIsSpacePressed] = useState(false)
   const [isPanning, setIsPanning] = useState(false)
+  const [isImageDragOver, setIsImageDragOver] = useState(false)
   const panStartRef = useRef<{
     x: number
     y: number
@@ -124,6 +129,7 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
             ...(currentPage.texts || []),
             ...(currentPage.highlights || []),
             ...(currentPage.arrows || []),
+            ...(currentPage.images || []),
             ...(currentPage.textReplacements || []),
           ]
         : [],
@@ -183,6 +189,62 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
       currentClientY: e.clientY,
       additive,
     })
+  }
+
+  const isImageFileDrag = (e: React.DragEvent) =>
+    Array.from(e.dataTransfer.items || []).some((item) =>
+      item.type.startsWith("image/"),
+    ) ||
+    Array.from(e.dataTransfer.files || []).some((file) =>
+      file.type.startsWith("image/"),
+    )
+
+  const handleCanvasDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!isImageFileDrag(e)) return
+    e.preventDefault()
+    e.stopPropagation()
+    setIsImageDragOver(true)
+  }
+
+  const handleCanvasDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!isImageFileDrag(e)) return
+    e.preventDefault()
+    e.stopPropagation()
+    e.dataTransfer.dropEffect = "copy"
+    if (!isImageDragOver) {
+      setIsImageDragOver(true)
+    }
+  }
+
+  const handleCanvasDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!isImageFileDrag(e)) return
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+    setIsImageDragOver(false)
+  }
+
+  const handleCanvasDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    if (!isImageFileDrag(e)) return
+    e.preventDefault()
+    e.stopPropagation()
+    setIsImageDragOver(false)
+
+    const canvasRect = canvasRef.current?.getBoundingClientRect()
+    const dropPosition = canvasRect
+      ? {
+          x: (e.clientX - canvasRect.left) / zoom,
+          y: (e.clientY - canvasRect.top) / zoom,
+        }
+      : undefined
+
+    const files = Array.from(e.dataTransfer.files || []).filter((file) =>
+      file.type === "image/png" || file.type === "image/jpeg"
+        ? true
+        : false,
+    )
+
+    for (const file of files) {
+      await addImageElement(file, dropPosition)
+    }
   }
 
   const handleElementClick = (e: React.MouseEvent, elementId: string) => {
@@ -342,6 +404,11 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
     setResizeTargetId(elementId)
     setIsResizing(true)
     setResizeLockHeight("thickness" in element) // lock height only for arrows
+    setResizeAspectRatio(
+      "src" in element && element.lockedAspectRatio && element.height
+        ? element.width / element.height
+        : null,
+    )
     setResizeStart({
       x: e.clientX,
       y: e.clientY,
@@ -357,7 +424,9 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
     const newWidth = Math.max(50, resizeStart.width + deltaX)
     const newHeight = resizeLockHeight
       ? resizeStart.height
-      : Math.max(20, resizeStart.height + (e.clientY - resizeStart.y) / zoom)
+      : resizeAspectRatio
+        ? Math.max(20, newWidth / resizeAspectRatio)
+        : Math.max(20, resizeStart.height + (e.clientY - resizeStart.y) / zoom)
 
     updateElement(resizeTargetId, { width: newWidth, height: newHeight })
   }
@@ -366,6 +435,7 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
     setIsResizing(false)
     setResizeTargetId(null)
     setResizeLockHeight(false)
+    setResizeAspectRatio(null)
   }
 
   const handleRotateStart = (e: React.MouseEvent, elementId: string) => {
@@ -803,6 +873,10 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
               transformOrigin: "top left",
             }}
             onMouseDown={handleCanvasMouseDown}
+            onDragEnter={handleCanvasDragEnter}
+            onDragOver={handleCanvasDragOver}
+            onDragLeave={handleCanvasDragLeave}
+            onDrop={handleCanvasDrop}
           >
             <canvas
               ref={pdfCanvasRef}
@@ -943,6 +1017,44 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
                 </div>
               )
             })}
+
+            {/* Texts */}
+            {currentPage.images?.map((image) => (
+              <div
+                key={image.id}
+                data-element-id={image.id}
+                className={cn(
+                  "absolute cursor-move border-2 transition-colors group overflow-hidden bg-transparent",
+                  selectedElements.includes(image.id)
+                    ? "border-primary"
+                    : "border-transparent hover:border-primary/50",
+                )}
+                style={{
+                  left: image.x,
+                  top: image.y,
+                  width: image.width,
+                  height: image.height,
+                }}
+                onClick={(e) => handleElementClick(e, image.id)}
+                onMouseDown={(e) => handleDragStart(e, image.id)}
+              >
+                <img
+                  src={image.src}
+                  alt=""
+                  draggable={false}
+                  className="pointer-events-none h-full w-full select-none object-contain"
+                />
+                {selectedElements.includes(image.id) && (
+                  <div
+                    className="absolute bottom-0 right-0 h-3 w-3 cursor-se-resize bg-primary"
+                    style={{
+                      transform: "translate(50%, 50%)",
+                    }}
+                    onMouseDown={(e) => handleResizeStart(e, image.id, image)}
+                  />
+                )}
+              </div>
+            ))}
 
             {/* Texts */}
             {currentPage.texts?.map((text) => (
@@ -1170,6 +1282,13 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
                 {state.pagination.enabled
                   ? currentPageIndex + state.pagination.startAt
                   : manualPaginationText}
+              </div>
+            )}
+            {isImageDragOver && (
+              <div className="absolute inset-0 z-20 flex items-center justify-center border-2 border-dashed border-primary bg-primary/10 text-center">
+                <p className="max-w-xs px-6 text-sm font-medium text-primary">
+                  {copy.canvas.dropImage}
+                </p>
               </div>
             )}
             {selectionBox.active && (

@@ -68,6 +68,20 @@ export interface ArrowElement {
   angle: number
 }
 
+export interface ImageElement {
+  id: string
+  type: "image"
+  x: number
+  y: number
+  width: number
+  height: number
+  src: string
+  mimeType: "image/png" | "image/jpeg"
+  originalWidth: number
+  originalHeight: number
+  lockedAspectRatio: boolean
+}
+
 export interface PdfTextReplacementElement {
   id: string
   type: "pdf-text-replacement"
@@ -104,6 +118,7 @@ export interface PageData {
   texts: TextElement[]
   highlights: HighlightElement[]
   arrows: ArrowElement[]
+  images: ImageElement[]
   textReplacements: PdfTextReplacementElement[]
   extractedTextBlocks: PdfTextBlock[]
   footer: PageFooter
@@ -161,6 +176,10 @@ export interface PDFState {
   toggleElementSelection: (id: string, additive: boolean) => void
   setAddMode: (mode: PDFState["addMode"]) => void
   addTextElement: (x: number, y: number) => void
+  addImageElement: (
+    file: File,
+    position?: { x: number; y: number },
+  ) => Promise<void>
   addTextReplacementFromBlock: (blockId: string) => void
   addHighlight: () => void
   addArrow: () => void

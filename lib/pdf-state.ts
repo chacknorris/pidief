@@ -5,6 +5,7 @@ export function createEmptyPageData(): PageData {
     texts: [],
     highlights: [],
     arrows: [],
+    images: [],
     textReplacements: [],
     extractedTextBlocks: [],
     footer: {
@@ -40,6 +41,7 @@ export function cloneDocumentState(state: DocumentState): DocumentState {
       texts: page.texts.map((text) => ({ ...text })),
       highlights: page.highlights.map((highlight) => ({ ...highlight })),
       arrows: page.arrows.map((arrow) => ({ ...arrow })),
+      images: page.images.map((image) => ({ ...image })),
       textReplacements: page.textReplacements.map((replacement) => ({
         ...replacement,
       })),

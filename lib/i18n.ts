@@ -23,6 +23,7 @@ type Copy = {
     noPdfTitle: string
     noPdfSubtitle: string
     pageLabel: (current: number, total: number) => string
+    dropImage: string
   }
   rightPanel: {
     properties: string
@@ -30,6 +31,7 @@ type Copy = {
     load: string
     addElement: string
     text: (placing: boolean) => string
+    image: string
     highlight: string
     arrow: string
     selected: (count: number) => string
@@ -51,6 +53,7 @@ type Copy = {
     highlightBorderWidth: string
     width: string
     height: string
+    lockAspectRatio: string
     thickness: string
     pagination: {
       title: string
@@ -91,6 +94,7 @@ const copy: Record<Lang, Copy> = {
       noPdfTitle: "No PDF loaded",
       noPdfSubtitle: "Import a PDF to get started",
       pageLabel: (current, total) => `Page ${current} of ${total}`,
+      dropImage: "Drop PNG or JPG files here to insert them into the current page",
     },
     rightPanel: {
       properties: "Properties",
@@ -98,6 +102,7 @@ const copy: Record<Lang, Copy> = {
       load: "Load JSON",
       addElement: "Add Element",
       text: (placing) => (placing ? "Click to place" : "Text"),
+      image: "Image",
       highlight: "Highlight",
       arrow: "Arrow",
       selected: (count) =>
@@ -123,6 +128,7 @@ const copy: Record<Lang, Copy> = {
       highlightBorderWidth: "Border Width",
       width: "Width",
       height: "Height",
+      lockAspectRatio: "Lock aspect ratio",
       thickness: "Thickness",
       pagination: {
         title: "Page Numbering",
@@ -161,6 +167,8 @@ const copy: Record<Lang, Copy> = {
       noPdfTitle: "No hay PDF cargado",
       noPdfSubtitle: "Importa un PDF para comenzar",
       pageLabel: (current, total) => `Página ${current} de ${total}`,
+      dropImage:
+        "Suelta archivos PNG o JPG aquí para insertarlos en la página actual",
     },
     rightPanel: {
       properties: "Propiedades",
@@ -168,6 +176,7 @@ const copy: Record<Lang, Copy> = {
       load: "Cargar JSON",
       addElement: "Agregar elemento",
       text: (placing) => (placing ? "Click para colocar" : "Texto"),
+      image: "Imagen",
       highlight: "Resaltado",
       arrow: "Flecha",
       selected: (count) =>
@@ -193,6 +202,7 @@ const copy: Record<Lang, Copy> = {
       highlightBorderWidth: "Grosor del borde",
       width: "Ancho",
       height: "Alto",
+      lockAspectRatio: "Bloquear proporción",
       thickness: "Grosor",
       pagination: {
         title: "Numeración de página",

@@ -8,6 +8,21 @@ import { getPdfStandardFont } from "./text-fonts"
 
 const EDITOR_TEXT_BORDER_WIDTH = 2
 
+function dataUrlToUint8Array(dataUrl: string): Uint8Array {
+  const [, base64 = ""] = dataUrl.split(",", 2)
+
+  if (typeof Buffer !== "undefined") {
+    return Uint8Array.from(Buffer.from(base64, "base64"))
+  }
+
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index)
+  }
+  return bytes
+}
+
 /**
  * Exports a PDF with overlays applied according to the document state.
  * This function treats the original PDF as immutable and applies all edits as overlays.
@@ -220,6 +235,30 @@ export async function exportFinalPDF(
 
           page.drawSvgPath(headPath, {
             color: rgb(color.r, color.g, color.b),
+          })
+        }
+      }
+
+      // ===== TEXT =====
+      if (pageData.images && pageData.images.length > 0) {
+        for (const imageElement of pageData.images) {
+          const mapped = mapElementRect(
+            imageElement,
+            { width: canvasWidth, height: canvasHeight },
+            { width: pageWidth, height: pageHeight },
+            useTransform ? metrics?.transform : undefined,
+          )
+          const imageBytes = dataUrlToUint8Array(imageElement.src)
+          const embeddedImage =
+            imageElement.mimeType === "image/png"
+              ? await pdfDoc.embedPng(imageBytes)
+              : await pdfDoc.embedJpg(imageBytes)
+
+          page.drawImage(embeddedImage, {
+            x: mapped.x,
+            y: mapped.y,
+            width: mapped.width,
+            height: mapped.height,
           })
         }
       }
