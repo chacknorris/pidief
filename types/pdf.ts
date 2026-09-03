@@ -193,6 +193,19 @@ export interface DocumentState {
 
 export type ExportProfile = "standard" | "email"
 
+export interface ExportRequest {
+  profile: ExportProfile
+  emailDpi: number
+  emailQuality: number
+}
+
+export interface ExportArtifact {
+  blob: Blob
+  fileName: string
+  sizeBytes: number
+  request: ExportRequest
+}
+
 export interface PDFState {
   state: DocumentState
   currentPageId: string | null
@@ -201,7 +214,10 @@ export interface PDFState {
   loadPDF: (file: File, insertAtIndex?: number) => Promise<number>
   saveState: () => string
   loadState: (json: string) => void
-  exportPDF: (profile?: ExportProfile) => Promise<number | null>
+  exportPDF: (request?: ExportProfile | ExportRequest) => Promise<number | null>
+  buildExportPDF: (
+    request?: ExportProfile | ExportRequest,
+  ) => Promise<ExportArtifact | null>
   exportEditablePDF: () => Promise<void>
   exportPagePDF: (pageId: string) => Promise<void>
   extractPage: (pageId: string) => Promise<void>

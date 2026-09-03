@@ -14,6 +14,27 @@ type Copy = {
     savePrompt?: string
     saveEditablePrompt?: string
   }
+  exportDialog: {
+    title: string
+    description: string
+    profile: string
+    standard: string
+    standardDescription: string
+    email: string
+    emailDescription: string
+    targetSize: string
+    targetHint: string
+    dpi: string
+    quality: string
+    measure: string
+    measuring: string
+    download: string
+    cancel: string
+    measured: (size: string) => string
+    withinTarget: (target: string) => string
+    overTarget: (target: string) => string
+    warning: string
+  }
   leftPanel: {
     pages: string
     empty: string
@@ -98,6 +119,29 @@ const copy: Record<Lang, Copy> = {
       language: "Language",
       savePrompt: "File name",
       saveEditablePrompt: "Editable PDF name",
+    },
+    exportDialog: {
+      title: "Measure export",
+      description:
+        "Choose the output profile, measure the exact PDF size, then download it.",
+      profile: "Export profile",
+      standard: "Standard",
+      standardDescription: "Preserves selectable text and vector content.",
+      email: "Email / compact",
+      emailDescription: "Smaller image-based PDF. Text will not be selectable.",
+      targetSize: "Target limit (MB)",
+      targetHint: "Used only to validate the measured result.",
+      dpi: "Resolution (DPI)",
+      quality: "JPEG quality",
+      measure: "Measure export",
+      measuring: "Measuring...",
+      download: "Download measured PDF",
+      cancel: "Cancel",
+      measured: (size) => `Measured size: ${size}`,
+      withinTarget: (target) => `Within the ${target} MB target`,
+      overTarget: (target) => `Above the ${target} MB target`,
+      warning:
+        "The compact profile rasterizes every page and may remove selectable text, forms, and interactive content.",
     },
     leftPanel: {
       pages: "Pages",
@@ -187,6 +231,31 @@ const copy: Record<Lang, Copy> = {
       language: "Idioma",
       savePrompt: "Nombre del archivo",
       saveEditablePrompt: "Nombre del PDF editable",
+    },
+    exportDialog: {
+      title: "Medir exportación",
+      description:
+        "Elige el perfil, mide el peso exacto del PDF y luego descárgalo.",
+      profile: "Perfil de exportación",
+      standard: "Estándar",
+      standardDescription:
+        "Conserva el texto seleccionable y el contenido vectorial.",
+      email: "Correo / compacto",
+      emailDescription:
+        "PDF más pequeño basado en imágenes. El texto no será seleccionable.",
+      targetSize: "Límite objetivo (MB)",
+      targetHint: "Solo se usa para validar el resultado medido.",
+      dpi: "Resolución (DPI)",
+      quality: "Calidad JPEG",
+      measure: "Medir exportación",
+      measuring: "Midiendo...",
+      download: "Descargar PDF medido",
+      cancel: "Cancelar",
+      measured: (size) => `Tamaño medido: ${size}`,
+      withinTarget: (target) => `Dentro del objetivo de ${target} MB`,
+      overTarget: (target) => `Sobre el objetivo de ${target} MB`,
+      warning:
+        "El perfil compacto rasteriza cada página y puede eliminar texto seleccionable, formularios y contenido interactivo.",
     },
     leftPanel: {
       pages: "Páginas",

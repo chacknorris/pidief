@@ -13,6 +13,7 @@ import { FileUp, FileDown, Download, FolderOpen } from "lucide-react"
 import type { ExportProfile, PDFState } from "@/types/pdf"
 import { getCopy } from "@/lib/i18n"
 import { saveBlobToUserDestination } from "@/lib/file-save"
+import { ExportDialog } from "./export-dialog"
 
 interface TopBarProps {
   pdfState: PDFState
@@ -21,38 +22,20 @@ interface TopBarProps {
 export function TopBar({ pdfState }: TopBarProps) {
   const {
     loadPDF,
-    exportPDF,
     exportEditablePDF,
+    buildExportPDF,
     state,
     updateLanguage,
     saveState,
     loadState,
   } = pdfState
   const copy = getCopy(state.language)
-  const [isExporting, setIsExporting] = useState(false)
-  const [lastExportSize, setLastExportSize] = useState<number | null>(null)
+  const [exportDialogOpen, setExportDialogOpen] = useState(false)
+  const [exportProfile, setExportProfile] = useState<ExportProfile>("standard")
 
-  const formatBytes = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
-  }
-
-  const handleExport = async (profile: ExportProfile) => {
-    if (isExporting) return
-    if (
-      profile === "email" &&
-      !window.confirm(copy.topBar.exportEmailWarning)
-    ) {
-      return
-    }
-    setIsExporting(true)
-    try {
-      const size = await exportPDF(profile)
-      if (size !== null) setLastExportSize(size)
-    } finally {
-      setIsExporting(false)
-    }
+  const openExportDialog = (profile: ExportProfile) => {
+    setExportProfile(profile)
+    setExportDialogOpen(true)
   }
 
   const handleImportPDF = () => {
@@ -109,13 +92,13 @@ export function TopBar({ pdfState }: TopBarProps) {
       </Button>
       <div className="ml-2 h-8 w-px bg-border" />
       <Button
-        onClick={() => void handleExport("standard")}
+        onClick={() => openExportDialog("standard")}
         variant="default"
         size="sm"
-        disabled={!state.originalPdfSources.length || isExporting}
+        disabled={!state.originalPdfSources.length}
       >
         <FileDown className="mr-2 h-4 w-4" />
-        {isExporting ? copy.topBar.exportPreparing : copy.topBar.export}
+        {copy.topBar.export}
       </Button>
       <Button
         onClick={exportEditablePDF}
@@ -137,8 +120,8 @@ export function TopBar({ pdfState }: TopBarProps) {
             <DropdownMenuLabel>{copy.topBar.menu}</DropdownMenuLabel>
             <DropdownMenuLabel>{copy.topBar.export}</DropdownMenuLabel>
             <DropdownMenuItem
-              onClick={() => void handleExport("email")}
-              disabled={!state.originalPdfSources.length || isExporting}
+              onClick={() => openExportDialog("email")}
+              disabled={!state.originalPdfSources.length}
             >
               <FileDown className="mr-2 h-4 w-4" />
               {copy.topBar.exportEmail}
@@ -171,11 +154,13 @@ export function TopBar({ pdfState }: TopBarProps) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      {lastExportSize !== null && (
-        <span className="max-w-48 truncate text-xs text-muted-foreground">
-          {copy.topBar.exportedSize(formatBytes(lastExportSize))}
-        </span>
-      )}
+      <ExportDialog
+        open={exportDialogOpen}
+        initialProfile={exportProfile}
+        onOpenChange={setExportDialogOpen}
+        buildExportPDF={buildExportPDF}
+        copy={copy.exportDialog}
+      />
     </div>
   )
 }

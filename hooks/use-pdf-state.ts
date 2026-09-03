@@ -25,6 +25,8 @@ import { getCopy } from "../lib/i18n"
 import type {
   ArrowElement,
   DocumentState,
+  ExportArtifact,
+  ExportRequest,
   HighlightElement,
   PageData,
   PdfTextReplacementElement,
@@ -90,6 +92,24 @@ function createSignatureElement(
     height,
     assetId: asset.id,
     lockedAspectRatio: true,
+  }
+}
+
+function normalizeExportRequest(
+  request: ExportProfile | ExportRequest = "standard",
+): ExportRequest {
+  if (typeof request === "string") {
+    return {
+      profile: request,
+      emailDpi: 120,
+      emailQuality: 0.72,
+    }
+  }
+
+  return {
+    profile: request.profile,
+    emailDpi: Math.max(72, Math.min(180, request.emailDpi)),
+    emailQuality: Math.max(0.4, Math.min(0.9, request.emailQuality)),
   }
 }
 
@@ -1342,43 +1362,42 @@ export function usePDFState(): PDFState {
     [pushHistory],
   )
 
-  const exportPDF = useCallback(
-    async (profile: ExportProfile = "standard") => {
+  const buildExportPDF = useCallback(
+    async (
+      request: ExportProfile | ExportRequest = "standard",
+    ): Promise<ExportArtifact | null> => {
       if (!state.originalPdfSources.length || !state.document) {
         alert("No PDF loaded to export")
         return null
       }
 
       try {
+        const exportRequest = normalizeExportRequest(request)
         // Dynamically import exportFinalPDF to avoid SSR issues
         const { exportFinalPDF } = await import("@/lib/pdf-export")
 
         // Generate the final PDF
         const pdfBytes = await exportFinalPDF(state.originalPdfSources, state, {
-          profile,
+          profile: exportRequest.profile,
+          emailDpi: exportRequest.emailDpi,
+          emailQuality: exportRequest.emailQuality,
         })
 
-        // Ask for filename, fallback to original name with suffix
+        const suffix =
+          exportRequest.profile === "email" ? "-compact" : "-edited"
         const defaultName =
-          state.document.name.replace(/\.pdf$/i, "") + "-edited.pdf"
+          state.document.name.replace(/\.pdf$/i, "") + `${suffix}.pdf`
         const downloadablePdf = pdfBytes.buffer.slice(
           pdfBytes.byteOffset,
           pdfBytes.byteOffset + pdfBytes.byteLength,
         ) as ArrayBuffer
         const blob = new Blob([downloadablePdf], { type: "application/pdf" })
-        const saved = await saveBlobToUserDestination(blob, {
-          suggestedName: defaultName,
-          types: [
-            {
-              description: "PDF",
-              accept: {
-                "application/pdf": [".pdf"],
-              },
-            },
-          ],
-        })
-        if (!saved) return null
-        return blob.size
+        return {
+          blob,
+          fileName: defaultName,
+          sizeBytes: blob.size,
+          request: exportRequest,
+        }
       } catch (error) {
         console.error("Failed to export PDF:", error)
         alert("Failed to export PDF. Please try again.")
@@ -1386,6 +1405,26 @@ export function usePDFState(): PDFState {
       }
     },
     [state],
+  )
+
+  const exportPDF = useCallback(
+    async (request: ExportProfile | ExportRequest = "standard") => {
+      const artifact = await buildExportPDF(request)
+      if (!artifact) return null
+      const saved = await saveBlobToUserDestination(artifact.blob, {
+        suggestedName: artifact.fileName,
+        types: [
+          {
+            description: "PDF",
+            accept: {
+              "application/pdf": [".pdf"],
+            },
+          },
+        ],
+      })
+      return saved ? artifact.sizeBytes : null
+    },
+    [buildExportPDF],
   )
 
   const buildPageExport = useCallback(
@@ -1573,6 +1612,7 @@ export function usePDFState(): PDFState {
     exportPagePDF,
     extractPage,
     buildPageExport,
+    buildExportPDF,
     setCurrentPageId,
     setSelectedElements,
     toggleElementSelection,
