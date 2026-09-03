@@ -54,7 +54,7 @@ When a user imports a PDF:
    - page viewport transform
    - source index for merged multi-file workflows
 4. The app creates an internal page id for each page and adds that page to `document.pageOrder`.
-5. Each page gets an empty annotation bucket: texts, highlights, arrows, and footer data.
+5. Each page gets an empty annotation bucket: texts, highlights, arrows, signatures, and footer data.
 
 The editor can import multiple PDFs. Each imported file becomes another entry in `originalPdfSources`, which allows merged export while preserving the origin of each page.
 
@@ -82,11 +82,13 @@ Because export copies pages in the current order, reordering pages in the left p
 
 ## How drawing and annotation work
 
-PIDIEF currently supports three overlay types:
+PIDIEF currently supports five overlay types:
 
 - text
 - highlight rectangles
 - arrows
+- images
+- visual signatures
 
 Each overlay stores layout data directly in state:
 
@@ -94,6 +96,8 @@ Each overlay stores layout data directly in state:
 - size
 - color and style
 - text formatting or arrow properties when relevant
+
+Signatures are page elements pointing to reusable session assets. Drawn signatures store normalized strokes and export as vector paths; uploaded signatures store an optimized PNG/JPG asset.
 
 The editor modifies those values through state actions in `use-pdf-state.ts`. The center canvas reads them to render the live editing view, and `lib/pdf-export.ts` maps them into PDF coordinates during export.
 
@@ -105,7 +109,7 @@ The main flow looks like this:
 2. A component calls an action from `usePDFState()`
 3. The hook updates the page model or document settings
 4. UI panels re-render from the updated state
-5. Export reads the full document state and produces a new PDF
+5. Export reads the full document state and produces a new PDF. The standard profile keeps the source content model; the email profile rasterizes the finished PDF at a controlled resolution and JPEG quality.
 
 Undo works by storing previous snapshots of the document state inside the hook.
 

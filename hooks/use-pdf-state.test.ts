@@ -115,4 +115,78 @@ describe("use-pdf-state serialization", () => {
 
     expect(restored?.state.pages["page-1"].texts[0].fontFamily).toBe("Arial")
   })
+
+  it("round-trips signature assets and page signatures", () => {
+    const state: DocumentState = {
+      document: {
+        name: "signature.pdf",
+        createdAt: new Date().toISOString(),
+        pageOrder: ["page-1"],
+      },
+      pages: {
+        "page-1": {
+          texts: [],
+          highlights: [],
+          arrows: [],
+          images: [],
+          signatures: [
+            {
+              id: "signature-1",
+              type: "signature",
+              x: 10,
+              y: 20,
+              width: 80,
+              height: 30,
+              assetId: "asset-1",
+              lockedAspectRatio: true,
+            },
+          ],
+          textReplacements: [],
+          extractedTextBlocks: [],
+          footer: { number: "", detail: "" },
+        },
+      },
+      pagination: {
+        enabled: false,
+        position: "bottom-center",
+        startAt: 1,
+        backgroundBox: false,
+      },
+      language: "en",
+      coordinateSpace: "pdf",
+      originalPdfBytes: null,
+      originalPdfSources: [],
+      pageMetrics: {
+        "page-1": { width: 200, height: 300, pageIndex: 0, sourceIndex: 0 },
+      },
+      signatureAssets: [
+        {
+          id: "asset-1",
+          name: "Firma",
+          source: "draw",
+          width: 100,
+          height: 50,
+          strokes: [
+            {
+              color: "#000000",
+              width: 2,
+              points: [
+                { x: 2, y: 3 },
+                { x: 20, y: 10 },
+              ],
+            },
+          ],
+        },
+      ],
+    }
+
+    const restored = deserializeDocumentState(serializeDocumentState(state))
+    expect(restored?.state.signatureAssets?.[0].strokes?.[0].points).toEqual([
+      { x: 2, y: 3 },
+      { x: 20, y: 10 },
+    ])
+    expect(restored?.state.pages["page-1"].signatures?.[0].assetId).toBe(
+      "asset-1",
+    )
+  })
 })

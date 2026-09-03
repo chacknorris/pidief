@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef } from "react"
+import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -26,9 +26,11 @@ import {
   AlignJustify,
   ArrowRight,
   ImagePlus,
+  PenLine,
 } from "lucide-react"
 import type { PDFState } from "@/types/pdf"
 import { getCopy } from "@/lib/i18n"
+import { SignatureDialog } from "./signature-dialog"
 
 interface RightPanelProps {
   pdfState: PDFState
@@ -45,6 +47,9 @@ export function RightPanel({ pdfState }: RightPanelProps) {
     deleteElement,
     deleteElements,
     addImageElement,
+    addSignatureFromDrawing,
+    addSignatureFromFile,
+    insertSignature,
     addHighlight,
     addArrow,
     updatePagination,
@@ -59,6 +64,7 @@ export function RightPanel({ pdfState }: RightPanelProps) {
         ...(currentPage.highlights || []),
         ...(currentPage.arrows || []),
         ...(currentPage.images || []),
+        ...(currentPage.signatures || []),
         ...(currentPage.textReplacements || []),
       ]
     : []
@@ -67,6 +73,7 @@ export function RightPanel({ pdfState }: RightPanelProps) {
   const multiSelected = selectedElements.length > 1
   const footer = currentPage?.footer ?? { number: "", detail: "" }
   const imageInputRef = useRef<HTMLInputElement | null>(null)
+  const [signatureDialogOpen, setSignatureDialogOpen] = useState(false)
 
   const handleAddImage = () => {
     imageInputRef.current?.click()
@@ -98,7 +105,7 @@ export function RightPanel({ pdfState }: RightPanelProps) {
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {copy.rightPanel.addElement}
           </h3>
-          <div className="grid grid-cols-5 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <Button
               size="sm"
               variant="outline"
@@ -153,8 +160,57 @@ export function RightPanel({ pdfState }: RightPanelProps) {
               <ImagePlus className="h-4 w-4" />
               <span className="text-xs">{copy.rightPanel.image}</span>
             </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex h-auto flex-col gap-1 bg-transparent py-3"
+              onClick={() => setSignatureDialogOpen(true)}
+            >
+              <PenLine className="h-4 w-4" />
+              <span className="text-xs">{copy.rightPanel.signature}</span>
+            </Button>
           </div>
         </div>
+
+        {(state.signatureAssets || []).length > 0 && (
+          <div className="space-y-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {copy.rightPanel.signature}
+            </h3>
+            <div className="space-y-2">
+              {(state.signatureAssets || []).map((asset) => (
+                <div
+                  key={asset.id}
+                  className="flex items-center justify-between gap-2 rounded-md border border-border bg-card p-2"
+                >
+                  <span className="min-w-0 truncate text-xs font-medium">
+                    {asset.name}
+                  </span>
+                  <div className="flex shrink-0 gap-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-[11px]"
+                      onClick={() => insertSignature(asset.id)}
+                    >
+                      {copy.rightPanel.useSignature}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-[11px]"
+                      onClick={() => insertSignature(asset.id, true)}
+                    >
+                      {copy.rightPanel.useOnAllPages}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <Separator />
 
@@ -572,6 +628,12 @@ export function RightPanel({ pdfState }: RightPanelProps) {
               </>
             )}
 
+            {element && "assetId" in element && (
+              <p className="rounded-md bg-muted/50 p-2 text-xs text-muted-foreground">
+                {copy.rightPanel.signatureHelp}
+              </p>
+            )}
+
             {/* Highlight Properties */}
             {element && "opacity" in element && (
               <>
@@ -881,6 +943,13 @@ export function RightPanel({ pdfState }: RightPanelProps) {
           )}
         </div>
       </div>
+      <SignatureDialog
+        open={signatureDialogOpen}
+        onOpenChange={setSignatureDialogOpen}
+        onCreateDrawing={addSignatureFromDrawing}
+        onCreateFile={addSignatureFromFile}
+        copy={copy.rightPanel}
+      />
     </div>
   )
 }

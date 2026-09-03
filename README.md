@@ -41,7 +41,9 @@ PIDIEF keeps the workflow local:
 - Import one or more PDFs and combine them into a single output document
 - Reorder, duplicate, and remove pages before export
 - Add text annotations, highlights, and arrows directly on top of rendered pages
+- Draw or load reusable visual signatures and place them on one or all pages
 - Export a final merged PDF with overlays baked in
+- Export an explicit compact, email-oriented PDF profile
 - Save and reload editor state as JSON for later work
 - Page numbering controls with position and start offset
 - English and Spanish UI copy
@@ -64,6 +66,7 @@ PIDIEF follows a simple local-first model:
 - `types/pdf.ts` defines the shared document, page, and overlay contracts
 - `lib/pdf-state.ts` contains reusable state factories and cloning helpers
 - `lib/pdf-export.ts` generates the final PDF with `pdf-lib`
+- `lib/signature-utils.ts` normalizes drawn signature strokes for reuse and export
 - `lib/pdfjs.ts` loads and configures PDF.js for in-browser rendering
 - `lib/i18n.ts` stores UI copy
 - `app/` contains the Next.js App Router entry points
@@ -74,6 +77,7 @@ In practice:
 2. `pdfjs-dist` reads page metrics and renders page previews in the browser.
 3. The app stores annotations as JSON-friendly overlay state.
 4. `pdf-lib` copies source pages into a new PDF and draws the overlays during export.
+5. The standard export preserves the source page model; the compact email profile rasterizes the finished pages at a controlled DPI/quality so users can trade editability for a smaller attachment.
 
 More detail: [docs/architecture.md](docs/architecture.md)
 

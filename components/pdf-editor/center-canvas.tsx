@@ -42,6 +42,13 @@ function isTransparentColor(color: string | undefined): boolean {
   return !color || color.toLowerCase() === "transparent"
 }
 
+function signatureStrokePath(points: Array<{ x: number; y: number }>): string {
+  if (!points.length) return ""
+  return points
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
+    .join(" ")
+}
+
 export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
   const {
     state,
@@ -130,6 +137,7 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
             ...(currentPage.highlights || []),
             ...(currentPage.arrows || []),
             ...(currentPage.images || []),
+            ...(currentPage.signatures || []),
             ...(currentPage.textReplacements || []),
           ]
         : [],
@@ -237,9 +245,7 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
       : undefined
 
     const files = Array.from(e.dataTransfer.files || []).filter((file) =>
-      file.type === "image/png" || file.type === "image/jpeg"
-        ? true
-        : false,
+      file.type === "image/png" || file.type === "image/jpeg" ? true : false,
     )
 
     for (const file of files) {
@@ -405,7 +411,9 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
     setIsResizing(true)
     setResizeLockHeight("thickness" in element) // lock height only for arrows
     setResizeAspectRatio(
-      "src" in element && element.lockedAspectRatio && element.height
+      "lockedAspectRatio" in element &&
+        element.lockedAspectRatio &&
+        element.height
         ? element.width / element.height
         : null,
     )
@@ -1055,6 +1063,74 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
                 )}
               </div>
             ))}
+
+            {/* Signatures */}
+            {currentPage.signatures?.map((signature) => {
+              const asset = (state.signatureAssets || []).find(
+                (candidate) => candidate.id === signature.assetId,
+              )
+              if (!asset) return null
+              const selected = selectedElements.includes(signature.id)
+              return (
+                <div
+                  key={signature.id}
+                  data-element-id={signature.id}
+                  className={cn(
+                    "group absolute cursor-move overflow-hidden border-2 bg-transparent transition-colors",
+                    selected
+                      ? "border-primary"
+                      : "border-transparent hover:border-primary/50",
+                  )}
+                  style={{
+                    left: signature.x,
+                    top: signature.y,
+                    width: signature.width,
+                    height: signature.height,
+                  }}
+                  onClick={(e) => handleElementClick(e, signature.id)}
+                  onMouseDown={(e) => handleDragStart(e, signature.id)}
+                >
+                  {asset.source === "image" && asset.src ? (
+                    <img
+                      src={asset.src}
+                      alt={asset.name}
+                      draggable={false}
+                      className="pointer-events-none h-full w-full select-none object-contain"
+                    />
+                  ) : (
+                    <svg
+                      width="100%"
+                      height="100%"
+                      viewBox={`0 0 ${asset.width} ${asset.height}`}
+                      preserveAspectRatio="none"
+                      className="pointer-events-none"
+                      aria-label={asset.name}
+                    >
+                      {(asset.strokes || []).map((stroke, index) => (
+                        <path
+                          key={`${signature.id}-stroke-${index}`}
+                          d={signatureStrokePath(stroke.points)}
+                          fill="none"
+                          stroke={stroke.color}
+                          strokeWidth={stroke.width}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      ))}
+                    </svg>
+                  )}
+                  {selected && (
+                    <div
+                      className="absolute bottom-0 right-0 h-3 w-3 cursor-se-resize bg-primary"
+                      style={{ transform: "translate(50%, 50%)" }}
+                      onMouseDown={(e) =>
+                        handleResizeStart(e, signature.id, signature)
+                      }
+                    />
+                  )}
+                </div>
+              )
+            })}
 
             {/* Texts */}
             {currentPage.texts?.map((text) => (

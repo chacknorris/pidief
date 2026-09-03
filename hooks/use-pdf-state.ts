@@ -11,7 +11,11 @@ import {
 import { getPdfJs } from "../lib/pdfjs"
 import { findPidiefStateAttachment } from "../lib/editable-pdf"
 import { saveBlobToUserDestination } from "../lib/file-save"
-import { createImageElementFromFile } from "../lib/image-utils"
+import {
+  createImageElementFromFile,
+  createSignatureAssetFromFile,
+} from "../lib/image-utils"
+import { createSignatureAssetFromStrokes } from "../lib/signature-utils"
 import {
   extractTextBlocksFromPage,
   inferTextBlockColors,
@@ -25,7 +29,11 @@ import type {
   PageData,
   PdfTextReplacementElement,
   PDFState,
+  SignatureAsset,
+  SignatureElement,
+  SignatureStroke,
   TextElement,
+  ExportProfile,
 } from "../types/pdf"
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -55,6 +63,34 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
     bytes[i] = binary.charCodeAt(i)
   }
   return bytes.buffer
+}
+
+function createSignatureElement(
+  asset: SignatureAsset,
+  pageMetric: { width: number; height: number },
+  ordinal = 0,
+): SignatureElement {
+  const maxWidth = Math.max(120, pageMetric.width * 0.28)
+  const maxHeight = Math.max(50, pageMetric.height * 0.14)
+  const aspectRatio = Math.max(asset.width / Math.max(asset.height, 1), 0.2)
+  let width = Math.min(maxWidth, asset.width)
+  let height = width / aspectRatio
+
+  if (height > maxHeight) {
+    height = maxHeight
+    width = height * aspectRatio
+  }
+
+  return {
+    id: `signature-${Date.now()}-${ordinal}-${Math.random().toString(36).slice(2, 7)}`,
+    type: "signature",
+    x: Math.max(0, pageMetric.width - width - pageMetric.width * 0.12),
+    y: Math.max(0, pageMetric.height - height - pageMetric.height * 0.12),
+    width,
+    height,
+    assetId: asset.id,
+    lockedAspectRatio: true,
+  }
 }
 
 export function serializeDocumentState(state: DocumentState): string {
@@ -186,6 +222,19 @@ export function deserializeDocumentState(
                 lockedAspectRatio:
                   typeof image.lockedAspectRatio === "boolean"
                     ? image.lockedAspectRatio
+                    : true,
+              })),
+            signatures: (page.signatures || [])
+              .filter(
+                (signature: any) =>
+                  signature && typeof signature.assetId === "string",
+              )
+              .map((signature: any) => ({
+                ...signature,
+                type: "signature",
+                lockedAspectRatio:
+                  typeof signature.lockedAspectRatio === "boolean"
+                    ? signature.lockedAspectRatio
                     : true,
               })),
             textReplacements: (page.textReplacements || []).map(
@@ -345,6 +394,13 @@ export function deserializeDocumentState(
         width: image.width * scale,
         height: image.height * scale,
       })),
+      signatures: (page.signatures || []).map((signature) => ({
+        ...signature,
+        x: signature.x * scale,
+        y: signature.y * scale,
+        width: signature.width * scale,
+        height: signature.height * scale,
+      })),
       textReplacements: page.textReplacements.map((replacement) => ({
         ...replacement,
         x: replacement.x * scale,
@@ -419,6 +475,33 @@ export function deserializeDocumentState(
       originalPdfBytes: decodedOriginalPdf,
       originalPdfSources: decodedSources,
       pageMetrics: nextPageMetrics,
+      signatureAssets: Array.isArray(loadedState.signatureAssets)
+        ? loadedState.signatureAssets
+            .filter((asset: any) => asset && typeof asset.id === "string")
+            .map((asset: any) => ({
+              ...asset,
+              source: asset.source === "image" ? "image" : "draw",
+              strokes: Array.isArray(asset.strokes)
+                ? asset.strokes
+                    .filter((stroke: any) => Array.isArray(stroke.points))
+                    .map((stroke: any) => ({
+                      color:
+                        typeof stroke.color === "string"
+                          ? stroke.color
+                          : "#162338",
+                      width:
+                        typeof stroke.width === "number" ? stroke.width : 2.5,
+                      points: stroke.points
+                        .filter(
+                          (point: any) =>
+                            typeof point?.x === "number" &&
+                            typeof point?.y === "number",
+                        )
+                        .map((point: any) => ({ x: point.x, y: point.y })),
+                    }))
+                : undefined,
+            }))
+        : [],
     }
 
     return { state: restoredState, currentPageId: nextCurrentPageId }
@@ -730,10 +813,14 @@ export function usePDFState(): PDFState {
       if (!pageMetrics) return
 
       try {
-        const image = await createImageElementFromFile(file, {
-          width: pageMetrics.width,
-          height: pageMetrics.height,
-        }, position)
+        const image = await createImageElementFromFile(
+          file,
+          {
+            width: pageMetrics.width,
+            height: pageMetrics.height,
+          },
+          position,
+        )
 
         setState((prev) => {
           pushHistory(prev)
@@ -755,6 +842,91 @@ export function usePDFState(): PDFState {
       }
     },
     [currentPageId, pushHistory, state.pageMetrics],
+  )
+
+  const insertSignatureAsset = useCallback(
+    (asset: SignatureAsset, includeAsset: boolean, applyToAll: boolean) => {
+      if (!currentPageId || !state.document) return
+
+      const pageIds = applyToAll ? state.document.pageOrder : [currentPageId]
+      const prepared = pageIds.flatMap((pageId, index) => {
+        const metric = state.pageMetrics[pageId]
+        const page = state.pages[pageId]
+        if (!metric || !page) return []
+        return [
+          { pageId, signature: createSignatureElement(asset, metric, index) },
+        ]
+      })
+      if (!prepared.length) return
+
+      setState((prev) => {
+        const nextPages = { ...prev.pages }
+        prepared.forEach(({ pageId, signature }) => {
+          const page = prev.pages[pageId]
+          if (!page) return
+          nextPages[pageId] = {
+            ...page,
+            signatures: [...(page.signatures || []), signature],
+          }
+        })
+        pushHistory(prev)
+        return {
+          ...prev,
+          pages: nextPages,
+          signatureAssets: includeAsset
+            ? [...(prev.signatureAssets || []), asset]
+            : prev.signatureAssets,
+        }
+      })
+      setSelectedElements([prepared[0].signature.id])
+    },
+    [
+      currentPageId,
+      pushHistory,
+      state.document,
+      state.pageMetrics,
+      state.pages,
+    ],
+  )
+
+  const insertSignature = useCallback(
+    (assetId: string, applyToAll = false) => {
+      const asset = (state.signatureAssets || []).find(
+        (candidate) => candidate.id === assetId,
+      )
+      if (asset) insertSignatureAsset(asset, false, applyToAll)
+    },
+    [insertSignatureAsset, state.signatureAssets],
+  )
+
+  const addSignatureFromDrawing = useCallback(
+    (
+      strokes: SignatureStroke[],
+      name = "Firma dibujada",
+      applyToAll = false,
+    ) => {
+      try {
+        const asset = createSignatureAssetFromStrokes(strokes, name)
+        insertSignatureAsset(asset, true, applyToAll)
+      } catch (error) {
+        console.error("Failed to create signature:", error)
+        alert("No se pudo crear la firma. Dibuja al menos un trazo.")
+      }
+    },
+    [insertSignatureAsset],
+  )
+
+  const addSignatureFromFile = useCallback(
+    async (file: File, name = "Firma cargada", applyToAll = false) => {
+      try {
+        const asset = await createSignatureAssetFromFile(file, name)
+        insertSignatureAsset(asset, true, applyToAll)
+      } catch (error) {
+        console.error("Failed to add signature:", error)
+        alert("No se pudo cargar la firma. Usa un archivo PNG o JPG válido.")
+      }
+    },
+    [insertSignatureAsset],
   )
 
   const addTextReplacementFromBlock = useCallback(
@@ -914,6 +1086,9 @@ export function usePDFState(): PDFState {
               images: page.images.map((el) =>
                 updates[el.id] ? { ...el, ...updates[el.id] } : el,
               ),
+              signatures: (page.signatures || []).map((el) =>
+                updates[el.id] ? { ...el, ...updates[el.id] } : el,
+              ),
               textReplacements: page.textReplacements.map((el) =>
                 updates[el.id] ? { ...el, ...updates[el.id] } : el,
               ),
@@ -951,6 +1126,7 @@ export function usePDFState(): PDFState {
               highlights: page.highlights.filter((el) => el.id !== id),
               arrows: page.arrows.filter((el) => el.id !== id),
               images: page.images.filter((el) => el.id !== id),
+              signatures: (page.signatures || []).filter((el) => el.id !== id),
               textReplacements: page.textReplacements.filter(
                 (el) => el.id !== id,
               ),
@@ -981,6 +1157,9 @@ export function usePDFState(): PDFState {
               highlights: page.highlights.filter((el) => !ids.includes(el.id)),
               arrows: page.arrows.filter((el) => !ids.includes(el.id)),
               images: page.images.filter((el) => !ids.includes(el.id)),
+              signatures: (page.signatures || []).filter(
+                (el) => !ids.includes(el.id),
+              ),
               textReplacements: page.textReplacements.filter(
                 (el) => !ids.includes(el.id),
               ),
@@ -1163,44 +1342,51 @@ export function usePDFState(): PDFState {
     [pushHistory],
   )
 
-  const exportPDF = useCallback(async () => {
-    if (!state.originalPdfSources.length || !state.document) {
-      alert("No PDF loaded to export")
-      return
-    }
+  const exportPDF = useCallback(
+    async (profile: ExportProfile = "standard") => {
+      if (!state.originalPdfSources.length || !state.document) {
+        alert("No PDF loaded to export")
+        return null
+      }
 
-    try {
-      // Dynamically import exportFinalPDF to avoid SSR issues
-      const { exportFinalPDF } = await import("@/lib/pdf-export")
+      try {
+        // Dynamically import exportFinalPDF to avoid SSR issues
+        const { exportFinalPDF } = await import("@/lib/pdf-export")
 
-      // Generate the final PDF
-      const pdfBytes = await exportFinalPDF(state.originalPdfSources, state)
+        // Generate the final PDF
+        const pdfBytes = await exportFinalPDF(state.originalPdfSources, state, {
+          profile,
+        })
 
-      // Ask for filename, fallback to original name with suffix
-      const defaultName =
-        state.document.name.replace(/\.pdf$/i, "") + "-edited.pdf"
-      const downloadablePdf = pdfBytes.buffer.slice(
-        pdfBytes.byteOffset,
-        pdfBytes.byteOffset + pdfBytes.byteLength,
-      ) as ArrayBuffer
-      const blob = new Blob([downloadablePdf], { type: "application/pdf" })
-      const saved = await saveBlobToUserDestination(blob, {
-        suggestedName: defaultName,
-        types: [
-          {
-            description: "PDF",
-            accept: {
-              "application/pdf": [".pdf"],
+        // Ask for filename, fallback to original name with suffix
+        const defaultName =
+          state.document.name.replace(/\.pdf$/i, "") + "-edited.pdf"
+        const downloadablePdf = pdfBytes.buffer.slice(
+          pdfBytes.byteOffset,
+          pdfBytes.byteOffset + pdfBytes.byteLength,
+        ) as ArrayBuffer
+        const blob = new Blob([downloadablePdf], { type: "application/pdf" })
+        const saved = await saveBlobToUserDestination(blob, {
+          suggestedName: defaultName,
+          types: [
+            {
+              description: "PDF",
+              accept: {
+                "application/pdf": [".pdf"],
+              },
             },
-          },
-        ],
-      })
-      if (!saved) return
-    } catch (error) {
-      console.error("Failed to export PDF:", error)
-      alert("Failed to export PDF. Please try again.")
-    }
-  }, [state])
+          ],
+        })
+        if (!saved) return null
+        return blob.size
+      } catch (error) {
+        console.error("Failed to export PDF:", error)
+        alert("Failed to export PDF. Please try again.")
+        return null
+      }
+    },
+    [state],
+  )
 
   const buildPageExport = useCallback(
     async (pageId: string) => {
@@ -1238,6 +1424,7 @@ export function usePDFState(): PDFState {
       const pdfBytes = await exportFinalPDF(
         state.originalPdfSources,
         singlePageState,
+        { profile: "standard" },
       )
       const downloadablePdf = pdfBytes.buffer.slice(
         pdfBytes.byteOffset,
@@ -1392,6 +1579,9 @@ export function usePDFState(): PDFState {
     setAddMode,
     addTextElement,
     addImageElement,
+    addSignatureFromDrawing,
+    addSignatureFromFile,
+    insertSignature,
     addTextReplacementFromBlock,
     addHighlight,
     addArrow,

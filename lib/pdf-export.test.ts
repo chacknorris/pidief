@@ -245,4 +245,81 @@ describe("exportFinalPDF", () => {
 
     expect(exported.getPageCount()).toBe(1)
   })
+
+  it("exports a drawn signature as vector paths", async () => {
+    const source = await PDFDocument.create()
+    source.addPage([200, 300])
+    const sourceBytes = await source.save()
+    const buffer = toArrayBuffer(sourceBytes)
+
+    const state: DocumentState = {
+      document: {
+        name: "signed.pdf",
+        createdAt: new Date().toISOString(),
+        pageOrder: ["page-1"],
+      },
+      pages: {
+        "page-1": {
+          texts: [],
+          highlights: [],
+          arrows: [],
+          images: [],
+          signatures: [
+            {
+              id: "signature-1",
+              type: "signature",
+              x: 20,
+              y: 30,
+              width: 100,
+              height: 50,
+              assetId: "asset-1",
+              lockedAspectRatio: true,
+            },
+          ],
+          textReplacements: [],
+          extractedTextBlocks: [],
+          footer: { number: "", detail: "" },
+        },
+      },
+      pagination: {
+        enabled: false,
+        position: "bottom-center",
+        startAt: 1,
+        backgroundBox: false,
+      },
+      language: "en",
+      coordinateSpace: "pdf",
+      originalPdfBytes: buffer,
+      originalPdfSources: [buffer],
+      pageMetrics: {
+        "page-1": { width: 200, height: 300, pageIndex: 0, sourceIndex: 0 },
+      },
+      signatureAssets: [
+        {
+          id: "asset-1",
+          name: "Firma",
+          source: "draw",
+          width: 100,
+          height: 50,
+          strokes: [
+            {
+              color: "#000000",
+              width: 3,
+              points: [
+                { x: 10, y: 35 },
+                { x: 40, y: 10 },
+                { x: 90, y: 35 },
+              ],
+            },
+          ],
+        },
+      ],
+    }
+
+    const exportedBytes = await exportFinalPDF(state.originalPdfSources, state)
+    const exported = await PDFDocument.load(exportedBytes)
+
+    expect(exported.getPageCount()).toBe(1)
+    expect(exportedBytes.length).toBeGreaterThan(sourceBytes.length)
+  })
 })

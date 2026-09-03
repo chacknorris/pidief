@@ -6,6 +6,7 @@ export function createEmptyPageData(): PageData {
     highlights: [],
     arrows: [],
     images: [],
+    signatures: [],
     textReplacements: [],
     extractedTextBlocks: [],
     footer: {
@@ -30,6 +31,7 @@ export function createInitialDocumentState(): DocumentState {
     originalPdfBytes: null,
     originalPdfSources: [],
     pageMetrics: {},
+    signatureAssets: [],
   }
 }
 
@@ -42,6 +44,9 @@ export function cloneDocumentState(state: DocumentState): DocumentState {
       highlights: page.highlights.map((highlight) => ({ ...highlight })),
       arrows: page.arrows.map((arrow) => ({ ...arrow })),
       images: page.images.map((image) => ({ ...image })),
+      signatures: (page.signatures || []).map((signature) => ({
+        ...signature,
+      })),
       textReplacements: page.textReplacements.map((replacement) => ({
         ...replacement,
       })),
@@ -63,6 +68,13 @@ export function cloneDocumentState(state: DocumentState): DocumentState {
     originalPdfBytes: state.originalPdfBytes,
     originalPdfSources: state.originalPdfSources,
     pageMetrics: { ...state.pageMetrics },
+    signatureAssets: (state.signatureAssets || []).map((asset) => ({
+      ...asset,
+      strokes: asset.strokes?.map((stroke) => ({
+        ...stroke,
+        points: stroke.points.map((point) => ({ ...point })),
+      })),
+    })),
   }
 }
 

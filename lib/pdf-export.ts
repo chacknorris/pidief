@@ -1,12 +1,96 @@
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib"
-import type { DocumentState } from "@/types/pdf"
+import type { DocumentState, ExportProfile } from "@/types/pdf"
 import {
   encodeStringAsUtf8,
   PIDIEF_STATE_ATTACHMENT_NAME,
 } from "./editable-pdf"
 import { getPdfStandardFont } from "./text-fonts"
+import { getPdfJs } from "./pdfjs"
 
 const EDITOR_TEXT_BORDER_WIDTH = 2
+
+export interface PDFExportOptions {
+  profile?: ExportProfile
+  emailDpi?: number
+  emailQuality?: number
+}
+
+function formatSvgPath(points: Array<{ x: number; y: number }>): string {
+  if (!points.length) return ""
+  return points
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
+    .join(" ")
+}
+
+function canvasToJpeg(
+  canvas: HTMLCanvasElement,
+  quality: number,
+): Promise<Uint8Array> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      async (blob) => {
+        if (!blob) {
+          reject(new Error("Failed to encode compact PDF page"))
+          return
+        }
+        resolve(new Uint8Array(await blob.arrayBuffer()))
+      },
+      "image/jpeg",
+      quality,
+    )
+  })
+}
+
+async function rasterizeForEmail(
+  pdfBytes: Uint8Array,
+  dpi = 120,
+  quality = 0.72,
+): Promise<Uint8Array> {
+  if (typeof document === "undefined") {
+    throw new Error("Compact PDF export requires a browser")
+  }
+
+  const pdfjsLib = await getPdfJs()
+  const source = await pdfjsLib.getDocument({ data: pdfBytes.slice() }).promise
+  const compactPdf = await PDFDocument.create()
+  const scale = Math.max(72, dpi) / 72
+
+  try {
+    for (let index = 1; index <= source.numPages; index += 1) {
+      const sourcePage = await source.getPage(index)
+      const viewport = sourcePage.getViewport({ scale })
+      const pageSize = sourcePage.getViewport({ scale: 1 })
+      const canvas = document.createElement("canvas")
+      canvas.width = Math.ceil(viewport.width)
+      canvas.height = Math.ceil(viewport.height)
+      const context = canvas.getContext("2d")
+      if (!context) throw new Error("Failed to prepare compact PDF page")
+
+      context.fillStyle = "#ffffff"
+      context.fillRect(0, 0, canvas.width, canvas.height)
+      await sourcePage.render({
+        canvas,
+        canvasContext: context,
+        viewport,
+      }).promise
+      const jpegBytes = await canvasToJpeg(canvas, quality)
+      const image = await compactPdf.embedJpg(jpegBytes)
+      const page = compactPdf.addPage([pageSize.width, pageSize.height])
+      page.drawImage(image, {
+        x: 0,
+        y: 0,
+        width: pageSize.width,
+        height: pageSize.height,
+      })
+      canvas.width = 1
+      canvas.height = 1
+    }
+  } finally {
+    await source.destroy()
+  }
+
+  return compactPdf.save()
+}
 
 function dataUrlToUint8Array(dataUrl: string): Uint8Array {
   const [, base64 = ""] = dataUrl.split(",", 2)
@@ -34,6 +118,7 @@ function dataUrlToUint8Array(dataUrl: string): Uint8Array {
 export async function exportFinalPDF(
   originalPdfSources: ArrayBuffer[],
   documentState: DocumentState,
+  options: PDFExportOptions = {},
 ): Promise<Uint8Array> {
   try {
     const { document: doc, pagination, pageMetrics } = documentState
@@ -60,6 +145,10 @@ export async function exportFinalPDF(
       sourceIndex: pageMetrics[pageId]?.sourceIndex ?? 0,
       sourcePageIndex: pageMetrics[pageId]?.pageIndex ?? index,
     }))
+
+    const signatureAssets = new Map(
+      (documentState.signatureAssets || []).map((asset) => [asset.id, asset]),
+    )
 
     for (let i = 0; i < pageEntries.length; i++) {
       const { pageId, metrics, sourceIndex, sourcePageIndex } = pageEntries[i]
@@ -263,6 +352,58 @@ export async function exportFinalPDF(
         }
       }
 
+      // ===== SIGNATURES =====
+      if (pageData.signatures && pageData.signatures.length > 0) {
+        for (const signatureElement of pageData.signatures) {
+          const asset = signatureAssets.get(signatureElement.assetId)
+          if (!asset) continue
+          const mapped = mapElementRect(
+            signatureElement,
+            { width: canvasWidth, height: canvasHeight },
+            { width: pageWidth, height: pageHeight },
+            useTransform ? metrics?.transform : undefined,
+          )
+
+          if (asset.source === "image" && asset.src && asset.mimeType) {
+            const imageBytes = dataUrlToUint8Array(asset.src)
+            const embeddedImage =
+              asset.mimeType === "image/png"
+                ? await pdfDoc.embedPng(imageBytes)
+                : await pdfDoc.embedJpg(imageBytes)
+            page.drawImage(embeddedImage, {
+              x: mapped.x,
+              y: mapped.y,
+              width: mapped.width,
+              height: mapped.height,
+            })
+          }
+
+          if (asset.source === "draw" && asset.strokes) {
+            for (const stroke of asset.strokes) {
+              const points = stroke.points.map((point) => ({
+                x: mapped.x + (point.x / asset.width) * mapped.width,
+                y:
+                  mapped.y +
+                  mapped.height -
+                  (point.y / asset.height) * mapped.height,
+              }))
+              const color = hexToRgb(stroke.color)
+              const strokeWidth = Math.max(
+                0.7,
+                stroke.width * (mapped.width / Math.max(asset.width, 1)),
+              )
+              const path = formatSvgPath(points)
+              if (path) {
+                page.drawSvgPath(path, {
+                  borderColor: rgb(color.r, color.g, color.b),
+                  borderWidth: strokeWidth,
+                })
+              }
+            }
+          }
+        }
+      }
+
       // ===== TEXT =====
       if (pageData.texts && pageData.texts.length > 0) {
         for (const textElement of pageData.texts) {
@@ -445,7 +586,15 @@ export async function exportFinalPDF(
       }
     }
 
-    return pdfDoc.save()
+    const finalBytes = await pdfDoc.save()
+    if (options.profile === "email") {
+      return rasterizeForEmail(
+        finalBytes,
+        options.emailDpi,
+        options.emailQuality,
+      )
+    }
+    return finalBytes
   } catch (error) {
     console.error("Failed to export PDF:", error)
     throw error

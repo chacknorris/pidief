@@ -5,6 +5,10 @@ type Copy = {
     import: string
     export: string
     exportEditable: string
+    exportEmail: string
+    exportEmailWarning: string
+    exportPreparing: string
+    exportedSize: (size: string) => string
     menu: string
     language: string
     savePrompt?: string
@@ -32,6 +36,15 @@ type Copy = {
     addElement: string
     text: (placing: boolean) => string
     image: string
+    signature: string
+    signatureHelp: string
+    drawSignature: string
+    uploadSignature: string
+    clearSignature: string
+    useSignature: string
+    useOnAllPages: string
+    signatureName: string
+    signatureEmpty: string
     highlight: string
     arrow: string
     selected: (count: number) => string
@@ -76,6 +89,11 @@ const copy: Record<Lang, Copy> = {
       import: "Import PDF",
       export: "Export PDF",
       exportEditable: "Save Editable PDF",
+      exportEmail: "Export for email (compact)",
+      exportEmailWarning:
+        "Compact export rasterizes pages to reduce size. Text will no longer be selectable. Continue?",
+      exportPreparing: "Preparing PDF...",
+      exportedSize: (size) => `Exported PDF: ${size}`,
       menu: "Menu",
       language: "Language",
       savePrompt: "File name",
@@ -94,7 +112,8 @@ const copy: Record<Lang, Copy> = {
       noPdfTitle: "No PDF loaded",
       noPdfSubtitle: "Import a PDF to get started",
       pageLabel: (current, total) => `Page ${current} of ${total}`,
-      dropImage: "Drop PNG or JPG files here to insert them into the current page",
+      dropImage:
+        "Drop PNG or JPG files here to insert them into the current page",
     },
     rightPanel: {
       properties: "Properties",
@@ -103,6 +122,16 @@ const copy: Record<Lang, Copy> = {
       addElement: "Add Element",
       text: (placing) => (placing ? "Click to place" : "Text"),
       image: "Image",
+      signature: "Signature",
+      signatureHelp:
+        "Draw a signature or load a transparent PNG/JPG. It stays in this session.",
+      drawSignature: "Draw",
+      uploadSignature: "Load image",
+      clearSignature: "Clear",
+      useSignature: "Use on current page",
+      useOnAllPages: "Use on all pages",
+      signatureName: "Signature name",
+      signatureEmpty: "Draw at least one stroke first.",
       highlight: "Highlight",
       arrow: "Arrow",
       selected: (count) =>
@@ -149,6 +178,11 @@ const copy: Record<Lang, Copy> = {
       import: "Importar PDF",
       export: "Exportar PDF",
       exportEditable: "Guardar PDF editable",
+      exportEmail: "Exportar para correo (compacto)",
+      exportEmailWarning:
+        "La exportación compacta rasteriza las páginas para reducir el peso. El texto dejará de ser seleccionable. ¿Continuar?",
+      exportPreparing: "Preparando PDF...",
+      exportedSize: (size) => `PDF exportado: ${size}`,
       menu: "Menú",
       language: "Idioma",
       savePrompt: "Nombre del archivo",
@@ -177,6 +211,16 @@ const copy: Record<Lang, Copy> = {
       addElement: "Agregar elemento",
       text: (placing) => (placing ? "Click para colocar" : "Texto"),
       image: "Imagen",
+      signature: "Firma",
+      signatureHelp:
+        "Dibuja una firma o carga un PNG/JPG transparente. Se mantiene en esta sesión.",
+      drawSignature: "Dibujar",
+      uploadSignature: "Cargar imagen",
+      clearSignature: "Limpiar",
+      useSignature: "Usar en página actual",
+      useOnAllPages: "Usar en todas las páginas",
+      signatureName: "Nombre de la firma",
+      signatureEmpty: "Dibuja al menos un trazo primero.",
       highlight: "Resaltado",
       arrow: "Flecha",
       selected: (count) =>

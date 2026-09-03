@@ -82,6 +82,39 @@ export interface ImageElement {
   lockedAspectRatio: boolean
 }
 
+export interface SignaturePoint {
+  x: number
+  y: number
+}
+
+export interface SignatureStroke {
+  points: SignaturePoint[]
+  color: string
+  width: number
+}
+
+export interface SignatureAsset {
+  id: string
+  name: string
+  source: "draw" | "image"
+  width: number
+  height: number
+  strokes?: SignatureStroke[]
+  src?: string
+  mimeType?: "image/png" | "image/jpeg"
+}
+
+export interface SignatureElement {
+  id: string
+  type: "signature"
+  x: number
+  y: number
+  width: number
+  height: number
+  assetId: string
+  lockedAspectRatio: boolean
+}
+
 export interface PdfTextReplacementElement {
   id: string
   type: "pdf-text-replacement"
@@ -119,6 +152,7 @@ export interface PageData {
   highlights: HighlightElement[]
   arrows: ArrowElement[]
   images: ImageElement[]
+  signatures?: SignatureElement[]
   textReplacements: PdfTextReplacementElement[]
   extractedTextBlocks: PdfTextBlock[]
   footer: PageFooter
@@ -154,7 +188,10 @@ export interface DocumentState {
   originalPdfBytes: ArrayBuffer | null
   originalPdfSources: ArrayBuffer[]
   pageMetrics: Record<string, PageMetric>
+  signatureAssets?: SignatureAsset[]
 }
+
+export type ExportProfile = "standard" | "email"
 
 export interface PDFState {
   state: DocumentState
@@ -164,7 +201,7 @@ export interface PDFState {
   loadPDF: (file: File, insertAtIndex?: number) => Promise<number>
   saveState: () => string
   loadState: (json: string) => void
-  exportPDF: () => Promise<void>
+  exportPDF: (profile?: ExportProfile) => Promise<number | null>
   exportEditablePDF: () => Promise<void>
   exportPagePDF: (pageId: string) => Promise<void>
   extractPage: (pageId: string) => Promise<void>
@@ -180,6 +217,17 @@ export interface PDFState {
     file: File,
     position?: { x: number; y: number },
   ) => Promise<void>
+  addSignatureFromDrawing: (
+    strokes: SignatureStroke[],
+    name?: string,
+    applyToAll?: boolean,
+  ) => void
+  addSignatureFromFile: (
+    file: File,
+    name?: string,
+    applyToAll?: boolean,
+  ) => Promise<void>
+  insertSignature: (assetId: string, applyToAll?: boolean) => void
   addTextReplacementFromBlock: (blockId: string) => void
   addHighlight: () => void
   addArrow: () => void
