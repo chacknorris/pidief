@@ -53,6 +53,7 @@ npm run check
 2. For small fixes, you can open a PR directly.
 3. Keep each PR focused on one problem or one coherent improvement.
 4. Explain the user impact, tradeoffs, and testing in the PR description.
+5. All changes to `main` must go through a pull request and be approved by the repository owner.
 
 ## Good first contribution path
 
