@@ -15,7 +15,7 @@ import {
 } from "lucide-react"
 import { getEditorFontStack } from "@/lib/text-fonts"
 import type { PDFState } from "@/types/pdf"
-import { getPdfJs } from "@/lib/pdfjs"
+import { getDocumentOptions, getPdfJs } from "@/lib/pdfjs"
 import { cn } from "@/lib/utils"
 import { getCopy } from "@/lib/i18n"
 
@@ -491,7 +491,10 @@ export function CenterCanvas({ pdfState }: CenterCanvasProps): ReactElement {
             pdfDocRef.current = new Map()
           }
           if (pdfDocRef.current.has(index)) return
-          const loadingTask = pdfjsLib.getDocument({ data: bytes.slice(0) })
+          const loadingTask = pdfjsLib.getDocument({
+            ...getDocumentOptions(),
+            data: bytes.slice(0),
+          })
           const pdfDocument = await loadingTask.promise
 
           if (!cancelled) {

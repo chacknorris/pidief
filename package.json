@@ -25,8 +25,12 @@
     "node": ">=20"
   },
   "scripts": {
+    "copy-pdfjs-assets": "node scripts/copy-pdfjs-assets.mjs",
+    "postinstall": "node scripts/copy-pdfjs-assets.mjs",
+    "prebuild": "node scripts/copy-pdfjs-assets.mjs",
     "build": "next build",
     "check": "npm run typecheck && npm run lint && npm run test",
+    "predev": "node scripts/copy-pdfjs-assets.mjs",
     "dev": "next dev",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

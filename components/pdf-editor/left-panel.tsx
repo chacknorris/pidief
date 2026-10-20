@@ -12,7 +12,7 @@ import {
   Trash2,
 } from "lucide-react"
 import type { PDFState } from "@/types/pdf"
-import { getPdfJs } from "@/lib/pdfjs"
+import { getDocumentOptions, getPdfJs } from "@/lib/pdfjs"
 import { cn } from "@/lib/utils"
 import { getCopy } from "@/lib/i18n"
 
@@ -91,7 +91,10 @@ export function LeftPanel({ pdfState }: LeftPanelProps) {
             pdfDocRef.current = new Map()
           }
           if (pdfDocRef.current.has(index)) return
-          const loadingTask = pdfjsLib.getDocument({ data: bytes.slice(0) })
+          const loadingTask = pdfjsLib.getDocument({
+            ...getDocumentOptions(),
+            data: bytes.slice(0),
+          })
           try {
             const pdfDocument = await loadingTask.promise
             if (!cancelled) {

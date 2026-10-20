@@ -8,7 +8,7 @@ import {
   createEmptyPageData,
   createInitialDocumentState,
 } from "../lib/pdf-state"
-import { getPdfJs } from "../lib/pdfjs"
+import { getDocumentOptions, getPdfJs } from "../lib/pdfjs"
 import { findPidiefStateAttachment } from "../lib/editable-pdf"
 import { saveBlobToUserDestination } from "../lib/file-save"
 import {
@@ -575,7 +575,10 @@ export function usePDFState(): PDFState {
 
         // Load PDF with pdfjs-dist
         // Use a clone for pdf.js to avoid detaching the stored buffer
-        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer.slice(0) })
+        const loadingTask = pdfjsLib.getDocument({
+          ...getDocumentOptions(),
+          data: arrayBuffer.slice(0),
+        })
         const pdfDocument = await loadingTask.promise
         const embeddedStateJson = findPidiefStateAttachment(
           await pdfDocument.getAttachments(),

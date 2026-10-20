@@ -5,7 +5,7 @@ import {
   PIDIEF_STATE_ATTACHMENT_NAME,
 } from "./editable-pdf"
 import { getPdfStandardFont } from "./text-fonts"
-import { getPdfJs } from "./pdfjs"
+import { getDocumentOptions, getPdfJs } from "./pdfjs"
 
 const EDITOR_TEXT_BORDER_WIDTH = 2
 
@@ -51,7 +51,10 @@ async function rasterizeForEmail(
   }
 
   const pdfjsLib = await getPdfJs()
-  const source = await pdfjsLib.getDocument({ data: pdfBytes.slice() }).promise
+  const source = await pdfjsLib.getDocument({
+    ...getDocumentOptions(),
+    data: pdfBytes.slice(),
+  }).promise
   const compactPdf = await PDFDocument.create()
   const scale = Math.max(72, dpi) / 72
 
