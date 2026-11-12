@@ -533,6 +533,10 @@ export function deserializeDocumentState(
 
 export function usePDFState(): PDFState {
   const [state, setState] = useState<DocumentState>(createInitialDocumentState)
+  // Mirrors `state.document` so async callbacks (e.g. a multi-file import loop
+  // holding an old `loadPDF`) see the current value instead of a stale closure.
+  const hasDocumentRef = useRef(false)
+  hasDocumentRef.current = Boolean(state.document)
   const [currentPageId, setCurrentPageId] = useState<string | null>(null)
   const [selectedElements, setSelectedElements] = useState<string[]>([])
   const [addMode, setAddMode] = useState<PDFState["addMode"]>(null)
@@ -563,7 +567,11 @@ export function usePDFState(): PDFState {
   const clearSelection = useCallback(() => setSelectedElements([]), [])
 
   const loadPDF = useCallback(
-    async (file: File, insertAtIndex?: number) => {
+    async (
+      file: File,
+      insertAtIndex?: number,
+      options?: { restoreEmbeddedState?: boolean },
+    ) => {
       try {
         // Read the file as ArrayBuffer
         const arrayBuffer = await file.arrayBuffer()
@@ -580,15 +588,18 @@ export function usePDFState(): PDFState {
           data: arrayBuffer.slice(0),
         })
         const pdfDocument = await loadingTask.promise
-        const embeddedStateJson = findPidiefStateAttachment(
-          await pdfDocument.getAttachments(),
-        )
+        // Restoring an embedded editable state replaces the whole document, so
+        // only do it when opening a single file into an empty editor. When
+        // merging several files, the PDF is imported as plain pages instead.
+        const canRestoreEmbeddedState =
+          options?.restoreEmbeddedState !== false &&
+          !hasDocumentRef.current &&
+          typeof insertAtIndex !== "number"
+        const embeddedStateJson = canRestoreEmbeddedState
+          ? findPidiefStateAttachment(await pdfDocument.getAttachments())
+          : null
 
-        if (
-          !state.document &&
-          typeof insertAtIndex !== "number" &&
-          embeddedStateJson
-        ) {
+        if (embeddedStateJson) {
           const restored = deserializeDocumentState(embeddedStateJson)
           if (restored) {
             setState({
@@ -753,7 +764,7 @@ export function usePDFState(): PDFState {
         return 0
       }
     },
-    [pushHistory, state.document],
+    [pushHistory],
   )
 
   const saveState = useCallback(() => serializeDocumentState(state), [state])

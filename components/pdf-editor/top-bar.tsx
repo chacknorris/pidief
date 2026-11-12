@@ -45,8 +45,11 @@ export function TopBar({ pdfState }: TopBarProps) {
     input.multiple = true
     input.onchange = async (e) => {
       const files = Array.from((e.target as HTMLInputElement).files || [])
+      // An editable PDF restores its saved session only when opened alone;
+      // in a multi-file import every file is merged as plain pages.
+      const restoreEmbeddedState = files.length === 1
       for (const file of files) {
-        await loadPDF(file)
+        await loadPDF(file, undefined, { restoreEmbeddedState })
       }
     }
     input.click()

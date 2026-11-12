@@ -211,7 +211,11 @@ export interface PDFState {
   currentPageId: string | null
   selectedElements: string[]
   addMode: "text" | "pdf-text-replacement" | null
-  loadPDF: (file: File, insertAtIndex?: number) => Promise<number>
+  loadPDF: (
+    file: File,
+    insertAtIndex?: number,
+    options?: { restoreEmbeddedState?: boolean },
+  ) => Promise<number>
   saveState: () => string
   loadState: (json: string) => void
   exportPDF: (request?: ExportProfile | ExportRequest) => Promise<number | null>
